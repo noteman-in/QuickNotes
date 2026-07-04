@@ -4,12 +4,13 @@ import { jsPDF } from "jspdf";
 
 import {
   Heart,
+  Folder as FolderIcon,
   FolderOpen,
   FileText,
   Trash2,
   PlusCircle
 } from "lucide-react";
-interface Folder {
+interface FolderItem {
   name: string;
   modifier: string;
   key: string;
@@ -26,7 +27,7 @@ interface Note {
 
 export default function App() {
   const [folders, setFolders] =
-    useState<Folder[]>([]);
+    useState<FolderItem[]>([]);
 
   const [notes, setNotes] =
     useState<Note[]>([]);
@@ -278,20 +279,34 @@ export default function App() {
     setKeyValue("");
   }
 
-  function deleteFolder(
-    index: number
-  ) {
-    const updated =
-      folders.filter(
-        (_, i) =>
-          i !== index
-      );
+  function deleteFolder(index: number) {
 
-    setFolders(updated);
+    const folderName = folders[index].name;
 
-    chrome.storage.local.set({
-      folders: updated
-    });
+    const updatedFolders = folders.filter(
+      (_, i) => i !== index
+    );
+
+    chrome.storage.local.get(
+      ["notes"],
+      (result: any) => {
+
+        const updatedNotes =
+          (result.notes || []).filter(
+            (note: any) =>
+              note.folder !== folderName
+          );
+
+        setFolders(updatedFolders);
+
+        chrome.storage.local.set({
+          folders: updatedFolders,
+          notes: updatedNotes
+        });
+
+      }
+    );
+
   }
 
   function exportPDF(
@@ -374,176 +389,242 @@ export default function App() {
       `${folderName}.pdf`
     );
   }
-
   return (
-    <div className="container">
-      <div className="top-bar">
+    <div className="app">
 
-        <h1>QuickNotes</h1>
+      <header className="navbar">
 
-        <button
-          className="nav-button"
-          onClick={() => {
-            window.location.hash =
-              "/favorites";
-          }}
-        >
-          <Heart size={24} />
-        </button>
-      </div>
+        <div className="navbar-left">
 
-      {warning && (
-        <div className="warning">
-          {warning}
-        </div>
-      )}
+          <div className="brand">
 
-      <div className="folder-form">
-        <input
-          type="text"
-          placeholder="Folder Name"
-          value={folderName}
-          onChange={(e) =>
-            setFolderName(
-              e.target.value
-            )
-          }
-        />
+            <FolderIcon
+              size={24}
+              strokeWidth={2.2}
+            />
 
-        <select
-          value={modifier}
-          onChange={(e) => {
-            setModifier(
-              e.target.value
-            );
-            setKeyValue("");
-          }}
-        >
-          <option value="">
-            Modifier
-          </option>
+            <div className="brand-text">
 
-          <option value="⌘">
-            ⌘ Command
-          </option>
+              <h1>QuickNotes</h1>
 
-          <option value="Shift">
-            Shift
-          </option>
-
-          <option value="Option">
-            Option
-          </option>
-
-          <option value="Ctrl">
-            Ctrl
-          </option>
-        </select>
-
-        <select
-          value={keyValue}
-          onChange={(e) =>
-            setKeyValue(
-              e.target.value
-            )
-          }
-        >
-          <option value="">
-            Key
-          </option>
-
-          {availableKeys.map(
-            (k) => (
-              <option
-                key={k}
-                value={k}
-              >
-                {k}
-              </option>
-            )
-          )}
-        </select>
-
-        <button
-          onClick={addFolder}
-          disabled={
-            !folderName ||
-            !modifier ||
-            !keyValue
-          }
-        >
-          <PlusCircle size={20} />
-          Add Folder
-        </button>
-      </div>
-
-      {folders.map(
-        (folder, index) => (
-          <div
-            className="folder-card"
-            key={index}
-          >
-            <div className="folder-row">
-
-              <div className="folder-title">
-                {folder.name}
-              </div>
-
-              <div className="note-count" title='Add New Item'>
-                {
-                  notes.filter(
-                    (note) =>
-                      note.folder ===
-                      folder.name
-                  ).length
-                }
-              </div>
-
-              <div className="shortcut">
-                {folder.modifier}
-                +
-                {folder.key}
-              </div>
-
-              <button
-                className="open-btn"
-                onClick={() => {
-                  window.location.hash =
-                    `/folder/${folder.name}`;
-                }}
-              >
-                <FolderOpen size={18} />
-                Open
-              </button>
-
-              <button
-                className="pdf-btn"
-                onClick={() =>
-                  exportPDF(
-                    folder.name
-                  )
-                }
-              >
-                <FileText size={18} />
-                PDF
-              </button>
-
-              <button
-                className="delete-btn"
-                onClick={() =>
-                  deleteFolder(
-                    index
-                  )
-                }
-              >
-                <Trash2 size={18} />
-                Delete
-              </button>
+              <span>
+                Organize everything you read
+              </span>
 
             </div>
+
           </div>
-        )
-      )}
+
+        </div>
+
+        <div className="navbar-right">
+
+          <button
+            className="favorite-button"
+            onClick={() => {
+              window.location.hash = "/favorites";
+            }}
+          >
+            <Heart size={18} />
+            Favorites
+          </button>
+
+        </div>
+
+      </header>
+
+      <main className="dashboard">
+
+        {warning && (
+          <div className="warning">
+            {warning}
+          </div>
+        )}
+
+        <section className="create-card">
+
+          <div className="create-header">
+
+            <h2>
+              Create Folder
+            </h2>
+
+            <p>
+              Every folder can have its own keyboard shortcut.
+            </p>
+
+          </div>
+
+          <div className="folder-form">
+
+            <input
+              type="text"
+              placeholder="Folder Name"
+              value={folderName}
+              onChange={(e) =>
+                setFolderName(
+                  e.target.value
+                )
+              }
+            />
+
+            <select
+              value={modifier}
+              onChange={(e) => {
+                setModifier(
+                  e.target.value
+                );
+                setKeyValue("");
+              }}
+            >
+              <option value="">
+                Modifier
+              </option>
+
+              <option value="⌘">
+                ⌘ Command
+              </option>
+
+              <option value="Shift">
+                Shift
+              </option>
+
+              <option value="Option">
+                Option
+              </option>
+
+              <option value="Ctrl">
+                Ctrl
+              </option>
+
+            </select>
+
+            <select
+              value={keyValue}
+              onChange={(e) =>
+                setKeyValue(
+                  e.target.value
+                )
+              }
+            >
+
+              <option value="">
+                Key
+              </option>
+
+              {availableKeys.map(
+                (k) => (
+                  <option
+                    key={k}
+                    value={k}
+                  >
+                    {k}
+                  </option>
+                )
+              )}
+
+            </select>
+
+            <button
+              onClick={addFolder}
+              disabled={
+                !folderName ||
+                !modifier ||
+                !keyValue
+              }
+            >
+
+              <PlusCircle size={18} />
+
+              Create Folder
+
+            </button>
+
+          </div>
+
+        </section>
+
+        <section className="folder-list">
+
+          {folders.map(
+            (folder, index) => (
+              <div
+                className="folder-card"
+                key={index}
+              >
+                <div className="folder-row">
+
+                  <div className="folder-title">
+
+                    <FolderIcon
+                      size={22}
+                      strokeWidth={2.2}
+                    />
+
+                    {folder.name}
+
+                  </div>
+
+                  <div className="note-count" title='Add New Item'>
+                    {
+                      notes.filter(
+                        (note) =>
+                          note.folder ===
+                          folder.name
+                      ).length
+                    }
+                  </div>
+
+                  <div className="shortcut">
+                    {folder.modifier}
+                    +
+                    {folder.key}
+                  </div>
+
+                  <button
+                    className="open-btn"
+                    onClick={() => {
+                      window.location.hash =
+                        `/folder/${folder.name}`;
+                    }}
+                  >
+                    <FolderOpen size={18} />
+                    Open
+                  </button>
+
+                  <button
+                    className="pdf-btn"
+                    onClick={() =>
+                      exportPDF(
+                        folder.name
+                      )
+                    }
+                  >
+                    <FileText size={18} />
+                    PDF
+                  </button>
+
+                  <button
+                    className="delete-btn"
+                    onClick={() =>
+                      deleteFolder(
+                        index
+                      )
+                    }
+                  >
+                    <Trash2 size={18} />
+                    Delete
+                  </button>
+
+                </div>
+              </div>
+            )
+          )}
+
+        </section>
+
+      </main>
+
     </div>
   );
 }

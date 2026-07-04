@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-
 import {
     ArrowLeft,
     ExternalLink
@@ -15,143 +14,167 @@ interface Note {
 }
 
 export default function FavoritesPage() {
-
-    const [notes, setNotes] =
-        useState<Note[]>([]);
-
-    const [search, setSearch] =
-        useState("");
+    const [notes, setNotes] = useState<Note[]>([]);
+    const [search, setSearch] = useState("");
 
     useEffect(() => {
+        loadFavorites();
 
+        const listener = (
+            changes: any,
+            area: string
+        ) => {
+            if (
+                area === "local" &&
+                changes.notes
+            ) {
+                loadFavorites();
+            }
+        };
+
+        chrome.storage.onChanged.addListener(listener);
+
+        return () => {
+            chrome.storage.onChanged.removeListener(listener);
+        };
+    }, []);
+
+    function loadFavorites() {
         chrome.storage.local.get(
             ["notes"],
             (result: { notes?: Note[] }) => {
-
-                const favorites =
-                    (result.notes || []).filter(
-                        note =>
-                            note.favorite
-                    );
-
-                setNotes(
-                    favorites
+                const favorites = (result.notes || []).filter(
+                    (note) => note.favorite
                 );
+
+                setNotes(favorites);
             }
         );
+    }
 
-    }, []);
-
-    const filtered =
-        notes.filter(
-            note =>
-                note.text
-                    .toLowerCase()
-                    .includes(
-                        search.toLowerCase()
-                    ) ||
-                note.title
-                    .toLowerCase()
-                    .includes(
-                        search.toLowerCase()
-                    )
-        );
+    const filtered = notes.filter(
+        (note) =>
+            note.text
+                .toLowerCase()
+                .includes(search.toLowerCase()) ||
+            note.title
+                .toLowerCase()
+                .includes(search.toLowerCase())
+    );
 
     return (
-        <div className="container">
+        <div className="app">
 
-            <div className="page-navbar">
+            <header className="navbar">
 
-                <div className="page-left">
+                <div className="navbar-left">
 
                     <button
                         className="nav-button"
                         onClick={() => {
                             window.location.hash = "/";
                         }}
+                        title="Back"
                     >
-                        <ArrowLeft size={24} />
+                        <ArrowLeft size={22} />
                     </button>
 
-                    <h1 className="page-title">
-                        Favorites
-                    </h1>
+                    <div className="brand-text">
+                        <h1>Favorites</h1>
+                        <span>Your favourite notes</span>
+                    </div>
 
                 </div>
 
-                <input
-                    className="page-search"
-                    placeholder="Search favorites..."
-                    value={search}
-                    onChange={(e) =>
-                        setSearch(
-                            e.target.value
-                        )
-                    }
-                />
+                <div className="navbar-right">
 
-            </div>
+                    <input
+                        className="page-search"
+                        placeholder="Search favorites..."
+                        value={search}
+                        onChange={(e) =>
+                            setSearch(e.target.value)
+                        }
+                    />
 
-            <div className="favorite-count">
-                Notes: {filtered.length}
-            </div>
+                </div>
 
-            <br />
+            </header>
 
-            {filtered.map(
-                (note, index) => (
+            <main className="dashboard">
 
-                    <div
-                        className="note-card"
-                        key={index}
-                    >
+                <section className="create-card">
 
-                        <div className="note-row">
+                    <div className="create-header">
 
-                            <div className="note-content">
+                        <h2>Favorite Notes</h2>
 
-                                <div className="note-text">
-                                    {note.text}
-                                </div>
-
-                                <div className="note-title">
-                                    {note.title}
-                                </div>
-
-                                <div className="note-date">
-                                    {note.date}
-                                </div>
-
-                            </div>
-
-                            <div className="note-buttons">
-
-                                <a
-                                    className="source-btn"
-                                    href={note.url}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                >
-                                    <ExternalLink size={16} />
-                                    Source
-                                </a>
-
-                            </div>
-
-                        </div>
+                        <p>
+                            {filtered.length} saved
+                            {filtered.length === 1 ? " note" : " notes"}
+                        </p>
 
                     </div>
 
-                )
-            )}
+                </section>
 
-            {filtered.length === 0 && (
+                <section className="folder-list">
 
-                <div className="empty-message">
-                    No favorite notes.
-                </div>
+                    {filtered.length === 0 ? (
 
-            )}
+                        <div className="empty-message">
+                            No favorite notes yet.
+                        </div>
+
+                    ) : (
+
+                        filtered.map((note, index) => (
+
+                            <div
+                                className="folder-card"
+                                key={index}
+                            >
+
+                                <div className="note-content">
+
+                                    <div className="note-text">
+                                        {note.text}
+                                    </div>
+
+                                    <div className="note-title">
+                                        {note.title}
+                                    </div>
+
+                                    <div className="note-date">
+                                        {note.date}
+                                    </div>
+
+                                </div>
+
+                                <div className="note-buttons">
+
+                                    <a
+                                        href={note.url}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="open-btn"
+                                    >
+                                        <ExternalLink size={16} />
+                                        Source
+                                    </a>
+
+
+                                </div>
+
+                            </div>
+
+                        ))
+
+                    )}
+
+                </section>
+
+            </main>
 
         </div>
     );
