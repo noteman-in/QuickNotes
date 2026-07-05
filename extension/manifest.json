@@ -1,31 +1,42 @@
 {
-    "manifest_version": 3,
-    "name": "QuickNotes",
-    "version": "1.0",
-    "permissions": [
-        "storage",
-        "activeTab",
-        "tabs"
-    ],
-    "host_permissions": [
+  "manifest_version": 3,
+  "name": "QuickNotes",
+  "version": "1.0",
+  "permissions": [
+    "storage",
+    "activeTab",
+    "tabs"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "action": {
+    "default_popup": "popup.html"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
         "<all_urls>"
-    ],
-    "action": {
-        "default_popup": "popup.html"
-    },
-    "background": {
-        "service_worker": "background.js"
-    },
-    "content_scripts": [
-        {
-            "matches": [
-                "<all_urls>"
-            ],
-            "js": [
-                "content.js"
-            ],
-            "run_at": "document_start",
-            "all_frames": true
-        }
-    ]
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_start",
+      "all_frames": true
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "dist/*",
+        "dist/assets/*"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
+    }
+  ]
 }

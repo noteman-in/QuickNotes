@@ -1,12 +1,14 @@
 import { useEffect, useState } from "react";
 import "./App.css";
-import { jsPDF } from "jspdf";
-
+import { FileText } from "lucide-react";
+import pdfMake from "pdfmake/build/pdfmake";
+import pdfFonts from "pdfmake/build/vfs_fonts";
+(pdfMake as any).addVirtualFileSystem(pdfFonts);
+import logo from "./assets/logo.png";
 import {
   Heart,
   Folder as FolderIcon,
   FolderOpen,
-  FileText,
   Trash2,
   PlusCircle
 } from "lucide-react";
@@ -15,14 +17,22 @@ interface FolderItem {
   modifier: string;
   key: string;
 }
-
 interface Note {
+
+  id: number;
+
   folder: string;
+
   text: string;
+
   url: string;
+
   title: string;
+
   date: string;
+
   favorite?: boolean;
+
 }
 
 export default function App() {
@@ -308,87 +318,91 @@ export default function App() {
     );
 
   }
+  function exportPDF(folderName: string) {
 
-  function exportPDF(
-    folderName: string
-  ) {
     const folderNotes =
       notes.filter(
-        (note) =>
-          note.folder ===
-          folderName
+        note =>
+          note.folder === folderName
       );
 
-    if (
-      folderNotes.length === 0
-    ) {
-      alert(
-        "No notes found."
-      );
+    if (folderNotes.length === 0) {
+
+      alert("No notes found.");
+
       return;
+
     }
 
-    const doc =
-      new jsPDF();
+    const content: any[] = [
 
-    doc.setFontSize(22);
-
-    doc.text(
-      folderName,
-      10,
-      20
-    );
-
-    let y = 35;
-
-    folderNotes.forEach(
-      (note, index) => {
-        doc.setFontSize(14);
-
-        doc.text(
-          `${index + 1}. ${note.title}`,
-          10,
-          y
-        );
-
-        y += 8;
-
-        const lines =
-          doc.splitTextToSize(
-            note.text,
-            180
-          );
-
-        doc.setFontSize(11);
-
-        doc.text(
-          lines,
-          10,
-          y
-        );
-
-        y +=
-          lines.length * 6;
-
-        doc.text(
-          note.date,
-          10,
-          y
-        );
-
-        y += 15;
-
-        if (y > 260) {
-          doc.addPage();
-          y = 20;
-        }
+      {
+        text: `QuickNotes - ${folderName}`,
+        style: "header"
       }
-    );
 
-    doc.save(
-      `${folderName}.pdf`
-    );
+    ];
+
+    folderNotes.forEach((note, index) => {
+
+      content.push(
+
+        {
+          text: `${index + 1}. ${note.title}`,
+          style: "title"
+        },
+
+        {
+          text: note.text,
+          margin: [0, 5, 0, 10]
+        },
+
+        {
+          text: `Source: ${note.url}`,
+          color: "blue",
+          margin: [0, 0, 0, 5]
+        },
+
+        {
+          text: `Date: ${note.date}`,
+          color: "gray",
+          margin: [0, 0, 0, 20]
+        }
+
+      );
+
+    });
+
+    pdfMake.createPdf({
+
+      content,
+
+      styles: {
+
+        header: {
+
+          fontSize: 22,
+
+          bold: true,
+
+          margin: [0, 0, 0, 20]
+
+        },
+
+        title: {
+
+          fontSize: 15,
+
+          bold: true
+
+        }
+
+      }
+
+    }).download(`${folderName}.pdf`);
+
   }
+
   return (
     <div className="app">
 
@@ -398,9 +412,10 @@ export default function App() {
 
           <div className="brand">
 
-            <FolderIcon
-              size={24}
-              strokeWidth={2.2}
+            <img
+              src={logo}
+              alt="QuickNotes"
+              className="brand-logo"
             />
 
             <div className="brand-text">
@@ -408,7 +423,7 @@ export default function App() {
               <h1>QuickNotes</h1>
 
               <span>
-                Organize everything you read
+                Capture • Organize • Revise
               </span>
 
             </div>
@@ -591,18 +606,16 @@ export default function App() {
                     <FolderOpen size={18} />
                     Open
                   </button>
-
                   <button
                     className="pdf-btn"
                     onClick={() =>
-                      exportPDF(
-                        folder.name
-                      )
+                      exportPDF(folder.name)
                     }
                   >
                     <FileText size={18} />
                     PDF
                   </button>
+
 
                   <button
                     className="delete-btn"

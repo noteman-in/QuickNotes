@@ -134,10 +134,6 @@ document.addEventListener(
                         }
                     );
 
-                console.log(
-                    "ACTIVE:",
-                    activeFolder
-                );
             }
         );
     },
@@ -159,11 +155,6 @@ document.addEventListener(
                     ?.toString()
                     .trim();
 
-            console.log(
-                "TEXT:",
-                text
-            );
-
             if (!text)
                 return;
 
@@ -174,17 +165,14 @@ document.addEventListener(
                     const notes =
                         result.notes || [];
 
-                    notes.push({
+                    const newNote = {
 
-                        id:
-                            Date.now(),
+                        id: Date.now(),
 
                         folder:
                             activeFolder.name,
 
-                        text:
-
-                            text,
+                        text,
 
                         url:
                             location.href,
@@ -193,23 +181,20 @@ document.addEventListener(
                             document.title,
 
                         date:
-                            new Date()
-                                .toLocaleString(),
+                            new Date().toLocaleString(),
 
                         favorite:
                             false
-                    });
+                    };
+
+                    notes.push(newNote);
 
                     chrome.storage.local.set(
                         {
-                            notes
+                            notes,
+                            lastSavedNote: newNote
                         },
                         () => {
-
-                            console.log(
-                                "Saved to:",
-                                activeFolder.name
-                            );
 
                             showToast(
                                 activeFolder.name
@@ -217,11 +202,14 @@ document.addEventListener(
 
                             activeFolder =
                                 null;
+
                         }
                     );
+
                 }
             );
 
         }, 50);
+
     }
 );

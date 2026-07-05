@@ -457,9 +457,6 @@ export default function FolderPage() {
                 Oldest First
               </option>
 
-              <option value="favorites">
-                Favorites First
-              </option>
 
             </select>
 
