@@ -41,6 +41,10 @@ export default function FolderPage() {
     useState("");
   const [copiedIndex, setCopiedIndex] =
     useState<number | null>(null);
+  const [savedIndex, setSavedIndex] =
+    useState<number | null>(null);
+  const [deletedIndex, setDeletedIndex] =
+    useState<number | null>(null);
 
   useEffect(() => {
 
@@ -94,55 +98,6 @@ export default function FolderPage() {
 
       }
     );
-
-  }
-
-  function showToast(
-    message: string
-  ) {
-
-    const toast =
-      document.createElement(
-        "div"
-      );
-
-    toast.innerText =
-      message;
-
-    toast.style.position =
-      "fixed";
-
-    toast.style.bottom =
-      "24px";
-
-    toast.style.right =
-      "24px";
-
-    toast.style.background =
-      "#111827";
-
-    toast.style.color =
-      "white";
-
-    toast.style.padding =
-      "12px 18px";
-
-    toast.style.borderRadius =
-      "12px";
-
-    toast.style.fontWeight =
-      "600";
-
-    toast.style.zIndex =
-      "99999";
-
-    document.body.appendChild(
-      toast
-    );
-
-    setTimeout(() => {
-      toast.remove();
-    }, 1200);
 
   }
 
@@ -270,13 +225,21 @@ export default function FolderPage() {
           {
             notes: updated
           },
-          loadNotes
-        );
+          () => {
 
-        setEditing(null);
+            loadNotes();
 
-        showToast(
-          "Saved!"
+            setSavedIndex(index);
+
+            setTimeout(() => {
+
+              setSavedIndex(null);
+
+              setEditing(null);
+
+            }, 700);
+
+          }
         );
 
       }
@@ -288,34 +251,42 @@ export default function FolderPage() {
     index: number
   ) {
 
-    chrome.storage.local.get(
-      ["notes"],
-      (result: { notes?: Note[] }) => {
+    setDeletedIndex(index);
 
-        const updated =
-          (result.notes || []).filter(
-            (note) =>
-              !(
-                note.text ===
-                filteredNotes[index].text &&
-                note.date ===
-                filteredNotes[index].date
-              )
+    setTimeout(() => {
+
+      chrome.storage.local.get(
+        ["notes"],
+        (result: { notes?: Note[] }) => {
+
+          const updated =
+            (result.notes || []).filter(
+              (note) =>
+                !(
+                  note.text ===
+                  filteredNotes[index].text &&
+                  note.date ===
+                  filteredNotes[index].date
+                )
+            );
+
+          chrome.storage.local.set(
+            {
+              notes: updated
+            },
+            () => {
+
+              loadNotes();
+
+              setDeletedIndex(null);
+
+            }
           );
 
-        chrome.storage.local.set(
-          {
-            notes: updated
-          },
-          loadNotes
-        );
+        }
+      );
 
-        showToast(
-          "Deleted!"
-        );
-
-      }
-    );
+    }, 700);
 
   }
 
@@ -554,8 +525,16 @@ export default function FolderPage() {
                           saveEdit(index)
                         }
                       >
-                        <Save size={16} />
-                        Save
+                        {savedIndex === index ? (
+                          <>
+                            ✓ Saved
+                          </>
+                        ) : (
+                          <>
+                            <Save size={16} />
+                            Save
+                          </>
+                        )}
                       </button>
 
                     ) : (
@@ -594,8 +573,16 @@ export default function FolderPage() {
                         deleteNote(index)
                       }
                     >
-                      <Trash2 size={16} />
-                      Delete
+                      {deletedIndex === index ? (
+                        <>
+                          ✓ Deleted
+                        </>
+                      ) : (
+                        <>
+                          <Trash2 size={16} />
+                          Delete
+                        </>
+                      )}
                     </button>
 
                   </div>
