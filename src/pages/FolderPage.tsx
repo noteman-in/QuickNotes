@@ -8,16 +8,28 @@ import {
   Trash2,
   Star,
   ExternalLink,
-  Save
+  Save,
+  CornerDownRight
 } from "lucide-react";
 
 interface Note {
+
+  id: string;
+
   folder: string;
+
   text: string;
+
   url: string;
+
   title: string;
+
   date: string;
+
   favorite?: boolean;
+
+  parentId?: string | null;
+
 }
 
 export default function FolderPage() {
@@ -45,6 +57,17 @@ export default function FolderPage() {
     useState<number | null>(null);
   const [deletedIndex, setDeletedIndex] =
     useState<number | null>(null);
+  const [showParentModal, setShowParentModal] =
+    useState(false);
+
+  const [selectedNote, setSelectedNote] =
+    useState<Note | null>(null);
+
+  const [parentSearch, setParentSearch] =
+    useState("");
+
+  const [selectedParentId, setSelectedParentId] =
+    useState<string | null>(null);
 
   useEffect(() => {
 
@@ -75,24 +98,63 @@ export default function FolderPage() {
     };
 
   }, [name]);
-
   function loadNotes() {
 
     chrome.storage.local.get(
       ["notes"],
       (result: { notes?: Note[] }) => {
 
+        const allNotes =
+          result.notes || [];
+
+        const ids = new Set(
+          allNotes.map(note => note.id)
+        );
+
+        let repaired = false;
+
+        const repairedNotes =
+          allNotes.map(note => {
+
+            if (
+              note.parentId &&
+              !ids.has(note.parentId)
+            ) {
+
+              repaired = true;
+
+              return {
+
+                ...note,
+
+                parentId: null
+
+              };
+
+            }
+
+            return note;
+
+          });
+
+        if (repaired) {
+
+          chrome.storage.local.set({
+            notes: repairedNotes
+          });
+
+        }
+
         const folderNotes =
-          (result.notes || [])
-            .filter(
-              (note) =>
-                note.folder
-                  .toLowerCase()
-                  .trim() ===
-                name
-                  ?.toLowerCase()
-                  .trim()
-            );
+          repairedNotes.filter(
+            note =>
+              note.folder
+                .toLowerCase()
+                .trim() ===
+              name
+                ?.toLowerCase()
+                .trim()
+          );
 
         setNotes(folderNotes);
 
@@ -203,10 +265,7 @@ export default function FolderPage() {
             (note) => {
 
               if (
-                note.text ===
-                filteredNotes[index].text &&
-                note.date ===
-                filteredNotes[index].date
+                note.id === filteredNotes[index].id
               ) {
 
                 return {
@@ -259,15 +318,17 @@ export default function FolderPage() {
         ["notes"],
         (result: { notes?: Note[] }) => {
 
+          const noteToDelete =
+            filteredNotes[index];
+
           const updated =
             (result.notes || []).filter(
-              (note) =>
-                !(
-                  note.text ===
-                  filteredNotes[index].text &&
-                  note.date ===
-                  filteredNotes[index].date
-                )
+              note =>
+
+                note.id !== noteToDelete.id &&
+
+                note.parentId !== noteToDelete.id
+
             );
 
           chrome.storage.local.set(
@@ -303,10 +364,7 @@ export default function FolderPage() {
             (note) => {
 
               if (
-                note.text ===
-                filteredNotes[index].text &&
-                note.date ===
-                filteredNotes[index].date
+                note.id === filteredNotes[index].id
               ) {
 
                 return {
@@ -330,6 +388,250 @@ export default function FolderPage() {
         );
 
       }
+    );
+
+  }
+  function getNoteIndex(
+    id: string
+  ) {
+
+    return filteredNotes.findIndex(
+      note => note.id === id
+    );
+
+  }
+  function getChildren(
+    parentId: string
+  ) {
+
+    return filteredNotes.filter(
+      note =>
+        note.parentId === parentId
+    );
+
+  }
+  function renderCard(
+    note: Note,
+    index: number,
+    child = false
+  ) {
+
+    return (
+      <div
+        className={
+          child
+            ? "folder-card child-card"
+            : "folder-card"
+
+        }
+
+      >
+
+        <div className="note-content">
+
+          {editing === index ? (
+
+            <textarea
+              className="edit-box"
+              value={editedText}
+              onChange={(e) =>
+                setEditedText(
+                  e.target.value
+                )
+              }
+            />
+
+          ) : (
+
+            <div className="note-text">
+              {note.text}
+            </div>
+
+          )}
+
+          <div className="note-title">
+            {note.title}
+          </div>
+
+          <div className="note-date">
+            {note.date}
+          </div>
+
+        </div>
+
+        <div className="note-buttons">
+
+          <a
+            href={note.url}
+            target="_blank"
+            rel="noreferrer"
+            className="open-btn"
+          >
+            <ExternalLink size={16} />
+            Source
+          </a>
+
+          <button
+            className="copy-btn"
+            onClick={() =>
+              copyNote(
+                note.text,
+                index
+              )
+            }
+          >
+            {copiedIndex === index ? (
+              <>
+                ✓ Copied
+              </>
+            ) : (
+              <>
+                <Copy size={16} />
+                Copy
+              </>
+            )}
+          </button>
+
+          {editing === index ? (
+
+            <button
+              className="open-btn"
+              onClick={() =>
+                saveEdit(index)
+              }
+            >
+              {savedIndex === index ? (
+                <>
+                  ✓ Saved
+                </>
+              ) : (
+                <>
+                  <Save size={16} />
+                  Save
+                </>
+              )}
+            </button>
+
+          ) : (
+
+            <button
+              className="open-btn"
+              onClick={() =>
+                startEdit(index)
+              }
+            >
+              <Pencil size={16} />
+              Edit
+            </button>
+
+          )}
+          <button
+            className="open-btn"
+            onClick={() => {
+
+              setSelectedNote(note);
+
+              setSelectedParentId(null);
+
+              setParentSearch("");
+
+              setShowParentModal(true);
+
+            }}
+          >
+            <CornerDownRight size={16} />
+            {child ? "Move" : "Add Under"}
+          </button>
+          {child && (
+
+            <button
+              className="delete-btn"
+              onClick={() => {
+
+                chrome.storage.local.get(
+                  ["notes"],
+                  (result: any) => {
+
+                    const updatedNotes =
+                      (result.notes || []).map((n: Note) => {
+
+                        if (n.id === note.id) {
+
+                          return {
+
+                            ...n,
+
+                            parentId: null
+
+                          };
+
+                        }
+
+                        return n;
+
+                      });
+
+                    chrome.storage.local.set(
+                      {
+                        notes: updatedNotes
+                      },
+                      () => {
+
+                        loadNotes();
+
+                      }
+                    );
+
+                  }
+                );
+
+              }}
+            >
+
+              Remove Parent
+
+            </button>
+
+          )}
+
+          <button
+            className="favorite-btn"
+            onClick={() =>
+              toggleFavorite(index)
+            }
+          >
+            <Star
+              size={16}
+              fill={
+                note.favorite
+                  ? "currentColor"
+                  : "none"
+              }
+            />
+          </button>
+
+          <button
+            className="delete-btn"
+            onClick={() =>
+              deleteNote(index)
+            }
+          >
+            {deletedIndex === index ? (
+              <>
+                ✓ Deleted
+              </>
+            ) : (
+              <>
+                <Trash2 size={16} />
+                Delete
+              </>
+            )}
+          </button>
+
+        </div>
+
+      </div>
+
     );
 
   }
@@ -445,157 +747,167 @@ export default function FolderPage() {
 
           ) : (
 
-            filteredNotes.map(
-              (note, index) => (
-                <div
-                  className="folder-card"
-                  key={index}
-                >
+            filteredNotes
+              .filter(note => !note.parentId)
+              .map((note, index) => (
 
-                  <div className="note-content">
+                <>
+                  {renderCard(note, index)}
 
-                    {editing === index ? (
+                  {getChildren(note.id).map((child) => (
 
-                      <textarea
-                        className="edit-box"
-                        value={editedText}
-                        onChange={(e) =>
-                          setEditedText(
-                            e.target.value
-                          )
-                        }
-                      />
-
-                    ) : (
-
-                      <div className="note-text">
-                        {note.text}
-                      </div>
-
-                    )}
-
-                    <div className="note-title">
-                      {note.title}
+                    <div
+                      key={child.id}
+                      className="child-wrapper"
+                    >
+                      {renderCard(
+                        child,
+                        getNoteIndex(child.id),
+                        true
+                      )}
                     </div>
 
-                    <div className="note-date">
-                      {note.date}
-                    </div>
+                  ))}
+                </>
 
-                  </div>
-
-                  <div className="note-buttons">
-
-                    <a
-                      href={note.url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="open-btn"
-                    >
-                      <ExternalLink size={16} />
-                      Source
-                    </a>
-
-                    <button
-                      className="copy-btn"
-                      onClick={() =>
-                        copyNote(
-                          note.text,
-                          index
-                        )
-                      }
-                    >
-                      {copiedIndex === index ? (
-                        <>
-                          ✓ Copied
-                        </>
-                      ) : (
-                        <>
-                          <Copy size={16} />
-                          Copy
-                        </>
-                      )}
-                    </button>
-
-                    {editing === index ? (
-
-                      <button
-                        className="open-btn"
-                        onClick={() =>
-                          saveEdit(index)
-                        }
-                      >
-                        {savedIndex === index ? (
-                          <>
-                            ✓ Saved
-                          </>
-                        ) : (
-                          <>
-                            <Save size={16} />
-                            Save
-                          </>
-                        )}
-                      </button>
-
-                    ) : (
-
-                      <button
-                        className="open-btn"
-                        onClick={() =>
-                          startEdit(index)
-                        }
-                      >
-                        <Pencil size={16} />
-                        Edit
-                      </button>
-
-                    )}
-
-                    <button
-                      className="favorite-btn"
-                      onClick={() =>
-                        toggleFavorite(index)
-                      }
-                    >
-                      <Star
-                        size={16}
-                        fill={
-                          note.favorite
-                            ? "currentColor"
-                            : "none"
-                        }
-                      />
-                    </button>
-
-                    <button
-                      className="delete-btn"
-                      onClick={() =>
-                        deleteNote(index)
-                      }
-                    >
-                      {deletedIndex === index ? (
-                        <>
-                          ✓ Deleted
-                        </>
-                      ) : (
-                        <>
-                          <Trash2 size={16} />
-                          Delete
-                        </>
-                      )}
-                    </button>
-
-                  </div>
-
-                </div>
-
-              )
-            )
+              ))
 
           )}
         </section>
 
       </main>
+      {showParentModal && (
+
+        <div className="modal-overlay">
+
+          <div className="parent-modal">
+
+            <h2>Add Under</h2>
+
+            <p>
+              Choose a parent note.
+            </p>
+
+            <input
+              type="text"
+              placeholder="Search..."
+              value={parentSearch}
+              onChange={(e) =>
+                setParentSearch(e.target.value)}
+            />
+
+            <div className="parent-list">
+
+              {notes
+                .filter(
+                  note =>
+
+                    note.id !== selectedNote?.id &&
+
+                    note.folder === selectedNote?.folder &&
+
+                    note.text
+                      .toLowerCase()
+                      .includes(
+                        parentSearch.toLowerCase()
+                      )
+                )
+                .map(note => (
+
+                  <div
+                    key={note.id}
+                    className={`parent-item ${selectedParentId === note.id
+                      ? "selected"
+                      : ""
+                      }`}
+                    onClick={() =>
+                      setSelectedParentId(note.id)}
+                  >
+
+                    {note.text.length > 80
+                      ? note.text.slice(0, 80) + "..."
+                      : note.text}
+
+                  </div>
+
+                ))}
+
+            </div>
+
+            <div className="modal-buttons">
+
+              <button
+                onClick={() =>
+                  setShowParentModal(false)}
+              >
+
+                Cancel
+
+              </button>
+
+              <button
+                onClick={() => {
+
+                  if (
+                    !selectedParentId ||
+                    !selectedNote
+                  )
+                    return;
+
+                  chrome.storage.local.get(
+                    ["notes"],
+                    (result: { notes?: Note[] }) => {
+
+                      const updatedNotes =
+                        (result.notes || []).map(note => {
+
+                          if (
+                            note.id === selectedNote.id
+                          ) {
+
+                            return {
+
+                              ...note,
+
+                              parentId: selectedParentId
+
+                            };
+
+                          }
+
+                          return note;
+
+                        });
+
+                      chrome.storage.local.set(
+                        {
+                          notes: updatedNotes
+                        },
+                        () => {
+
+                          loadNotes();
+
+                          setShowParentModal(false);
+
+                        }
+                      );
+
+                    }
+                  );
+                }}
+              >
+
+                Add Under
+
+              </button>
+
+            </div>
+
+          </div>
+
+        </div>
+
+      )}
 
     </div>
   );

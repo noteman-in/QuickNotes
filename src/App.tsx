@@ -19,7 +19,7 @@ interface FolderItem {
 }
 interface Note {
 
-  id: number;
+  id: string;
 
   folder: string;
 

@@ -167,7 +167,9 @@ document.addEventListener(
 
                     const newNote = {
 
-                        id: Date.now(),
+                        id: crypto.randomUUID(),
+
+                        parentId: null,
 
                         folder:
                             activeFolder.name,
@@ -191,8 +193,7 @@ document.addEventListener(
 
                     chrome.storage.local.set(
                         {
-                            notes,
-                            lastSavedNote: newNote
+                            notes
                         },
                         () => {
 
