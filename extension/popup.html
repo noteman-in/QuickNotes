@@ -3,422 +3,430 @@
 
 <head>
 
-<meta charset="UTF-8">
+    <meta charset="UTF-8">
 
-<title>QuickNotes</title>
+    <title>QuickNotes</title>
 
-<style>
+    <style>
+        * {
 
-*{
+            margin: 0;
 
-margin:0;
+            padding: 0;
 
-padding:0;
+            box-sizing: border-box;
 
-box-sizing:border-box;
+            font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 
-font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+        }
 
-}
+        body {
 
-body{
+            width: 390px;
 
-width:390px;
+            background: white;
 
-background: white;
+            overflow: hidden;
 
-overflow:hidden;
+        }
 
-}
+        .container {
 
-.container{
+            padding: 18px;
 
-padding:18px;
+        }
 
-}
+        .header {
 
-.header{
+            background: #111827;
 
-background:#111827;
+            border-radius: 18px;
 
-border-radius:18px;
+            padding: 18px;
 
-padding:18px;
+            color: white;
 
-color:white;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, .12);
 
-box-shadow:0 10px 30px rgba(0,0,0,.12);
+        }
 
-}
+        .header h1 {
 
-.header h1{
+            font-size: 28px;
 
-font-size:28px;
+            font-weight: 800;
 
-font-weight:800;
+            letter-spacing: -1px;
 
-letter-spacing:-1px;
+        }
 
-}
+        .footer-link {
 
-.header p{
+            display: inline-block;
 
-margin-top:4px;
+            color: #9ca3af;
 
-font-size:13px;
+            font-size: 14px;
 
-color:#cbd5e1;
+            font-weight: 600;
 
-}
+            text-decoration: none;
 
-#open{
+            transition: .2s;
 
-margin-top:16px;
+        }
 
-width:100%;
+        .footer-link:hover {
 
-height:46px;
+            color: #4f46e5;
 
-border:none;
+        }
 
-border-radius:12px;
+        .header p {
 
-background:white;
+            margin-top: 4px;
 
-color:#111827;
+            font-size: 13px;
 
-font-size:15px;
+            color: #cbd5e1;
 
-font-weight:700;
+        }
 
-cursor:pointer;
+        #open {
 
-transition:.2s;
+            margin-top: 16px;
 
-}
+            width: 100%;
 
-#open:hover{
+            height: 46px;
 
-transform:translateY(-1px);
+            border: none;
 
-box-shadow:0 8px 20px rgba(255,255,255,.15);
+            border-radius: 12px;
 
-}
+            background: white;
 
-.section{
+            color: #111827;
 
-margin-top:22px;
+            font-size: 15px;
 
-font-size:12px;
+            font-weight: 700;
 
-font-weight:700;
+            cursor: pointer;
 
-letter-spacing:1px;
+            transition: .2s;
 
-color:#94a3b8;
+        }
 
-text-transform:uppercase;
+        #open:hover {
 
-}
+            transform: translateY(-1px);
 
-.preview{
+            box-shadow: 0 8px 20px rgba(255, 255, 255, .15);
 
-margin-top:10px;
+        }
 
-background:white;
+        .section {
 
-border-radius:18px;
+            margin-top: 22px;
 
-padding:18px;
+            font-size: 12px;
 
-box-shadow:0 4px 18px rgba(15,23,42,.08);
+            font-weight: 700;
 
-}
+            letter-spacing: 1px;
 
-#previewText{
+            color: #94a3b8;
 
-font-size:15px;
+            text-transform: uppercase;
 
-font-weight:500;
+        }
 
-line-height:1.7;
+        .preview {
 
-color:#111827;
+            margin-top: 10px;
 
-height:170px;
+            background: white;
 
-overflow-y:auto;
+            border-radius: 18px;
 
-padding-right:6px;
+            padding: 18px;
 
-}
+            box-shadow: 0 4px 18px rgba(15, 23, 42, .08);
 
-#previewText::-webkit-scrollbar{
+        }
 
-width:5px;
+        #previewText {
 
-}
+            font-size: 15px;
 
-#previewText::-webkit-scrollbar-thumb{
+            font-weight: 500;
 
-background:#d1d5db;
+            line-height: 1.7;
 
-border-radius:50px;
+            color: #111827;
 
-}
+            height: 170px;
 
-.meta{
+            overflow-y: auto;
 
-margin-top:18px;
+            padding-right: 6px;
 
-display:flex;
+        }
 
-justify-content:space-between;
+        #previewText::-webkit-scrollbar {
 
-align-items:center;
+            width: 5px;
 
-}
+        }
 
-.folder{
+        #previewText::-webkit-scrollbar-thumb {
 
-background:#eef2ff;
+            background: #d1d5db;
 
-color:#3730a3;
+            border-radius: 50px;
 
-padding:6px 12px;
+        }
 
-border-radius:999px;
+        .meta {
 
-font-size:12px;
+            margin-top: 18px;
 
-font-weight:700;
+            display: flex;
 
-max-width:180px;
+            justify-content: space-between;
 
-overflow:hidden;
+            align-items: center;
 
-text-overflow:ellipsis;
+        }
 
-white-space:nowrap;
+        .folder {
 
-}
+            background: #eef2ff;
 
-.date{
+            color: #3730a3;
 
-font-size:12px;
+            padding: 6px 12px;
 
-color:#9ca3af;
+            border-radius: 999px;
 
-}
+            font-size: 12px;
 
-.actions{
+            font-weight: 700;
 
-margin-top:16px;
+            max-width: 180px;
 
-display:flex;
+            overflow: hidden;
 
-gap:10px;
+            text-overflow: ellipsis;
 
-}
+            white-space: nowrap;
 
-#openFolder{
+        }
 
-flex:1;
+        .date {
 
-height:44px;
+            font-size: 12px;
 
-border:none;
+            color: #9ca3af;
 
-border-radius:12px;
+        }
 
-background:#111827;
+        .actions {
 
-color:white;
+            margin-top: 16px;
 
-font-size:14px;
+            display: flex;
 
-font-weight:700;
+            gap: 10px;
 
-cursor:pointer;
+        }
 
-transition:.2s;
+        #openFolder {
 
-}
+            flex: 1;
 
-#openFolder:hover{
+            height: 44px;
 
-background:#1f2937;
+            border: none;
 
-}
+            border-radius: 12px;
 
-#delete{
+            background: #111827;
 
-width:48px;
+            color: white;
 
-height:44px;
+            font-size: 14px;
 
-display:flex;
+            font-weight: 700;
 
-align-items:center;
+            cursor: pointer;
 
-justify-content:center;
+            transition: .2s;
 
-border:none;
+        }
 
-border-radius:12px;
+        #openFolder:hover {
 
-background:#ef4444;
+            background: #1f2937;
 
-color:white;
+        }
 
-cursor:pointer;
+        #delete {
 
-transition:.2s;
+            width: 48px;
 
-box-shadow:0 8px 18px rgba(239,68,68,.25);
+            height: 44px;
 
-}
+            display: flex;
 
-#delete:hover{
+            align-items: center;
 
-background:#dc2626;
+            justify-content: center;
 
-transform:translateY(-1px);
+            border: none;
 
-}
+            border-radius: 12px;
 
-#delete svg{
+            background: #ef4444;
 
-width:19px;
+            color: white;
 
-height:19px;
+            cursor: pointer;
 
-}
+            transition: .2s;
 
-button:disabled{
+            box-shadow: 0 8px 18px rgba(239, 68, 68, .25);
 
-opacity:.45;
+        }
 
-cursor:not-allowed;
+        #delete:hover {
 
-}
+            background: #dc2626;
 
-.footer{
+            transform: translateY(-1px);
 
-margin-top:16px;
+        }
 
-text-align:center;
+        #delete svg {
 
-font-size:11px;
+            width: 19px;
 
-color:#9ca3af;
+            height: 19px;
 
-}
+        }
 
-</style>
+        button:disabled {
+
+            opacity: .45;
+
+            cursor: not-allowed;
+
+        }
+
+        .footer {
+
+            margin-top: 20px;
+
+            padding-bottom: 6px;
+
+            text-align: center;
+
+        }
+    </style>
 
 </head>
 
 <body>
 
-<div class="container">
+    <div class="container">
 
-<div class="header">
+        <div class="header">
 
-<h1>QuickNotes</h1>
+            <h1>QuickNotes</h1>
 
-<p>Capture • Organize • Revise</p>
+            <p>Capture • Organize • Revise</p>
 
-<button id="open">
+            <button id="open">
 
-Open Dashboard
+                Open Dashboard
 
-</button>
+            </button>
 
-</div>
+        </div>
 
-<div class="section">
+        <div class="section">
 
-Recently Saved
+            Recently Saved
 
-</div>
+        </div>
 
-<div class="preview">
+        <div class="preview">
 
-<div id="previewText">
+            <div id="previewText">
 
-No recently saved note.
+                No recently saved note.
 
-</div>
+            </div>
 
-<div class="meta">
+            <div class="meta">
 
-<div
-id="previewFolder"
-class="folder">
+                <div id="previewFolder" class="folder">
 
-No Folder
+                    No Folder
 
-</div>
+                </div>
 
-<div
-id="previewDate"
-class="date">
+                <div id="previewDate" class="date">
 
---
+                    --
 
-</div>
+                </div>
 
-</div>
+            </div>
 
-<div class="actions">
+            <div class="actions">
 
-<button id="openFolder">
+                <button id="openFolder">
 
-Open Folder
+                    Open Folder
 
-</button>
+                </button>
 
-<button id="delete" title="Delete Note">
+                <button id="delete" title="Delete Note">
 
-<svg
-    xmlns="http://www.w3.org/2000/svg"
-    width="20"
-    height="20"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    stroke-width="2"
-    stroke-linecap="round"
-    stroke-linejoin="round">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 
-    <polyline points="3 6 5 6 21 6"></polyline>
+                        <polyline points="3 6 5 6 21 6"></polyline>
 
-    <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path>
+                        <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path>
 
-    <path d="M10 11v6"></path>
+                        <path d="M10 11v6"></path>
 
-    <path d="M14 11v6"></path>
+                        <path d="M14 11v6"></path>
 
-    <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path>
+                        <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path>
 
-</svg>
+                    </svg>
 
-</button>
+                </button>
 
-</div>
+            </div>
 
-</div>
+        </div>
 
-<div class="footer">
+        <div class="footer">
+            <a class="footer-link"
+                href="https://docs.google.com/forms/d/e/1FAIpQLScgH8j-QsUwXaCll_Dr8wvC7dHZP9OHwuyYwyk5AmHg8UUTOQ/viewform?usp=header"
+                target="_blank" rel="noopener noreferrer">
+                Need help? Contact us
+            </a>
+        </div>
 
-QuickNotes v1.0
+    </div>
 
-</div>
-
-</div>
-
-<script src="popup/popup.js"></script>
+    <script src="popup/popup.js"></script>
 
 </body>
 

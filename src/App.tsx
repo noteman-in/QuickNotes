@@ -21,6 +21,8 @@ interface Note {
 
   id: string;
 
+  parentId: string | null;
+
   folder: string;
 
   text: string;
@@ -57,6 +59,10 @@ export default function App() {
 
   const [loaded, setLoaded] =
     useState(false);
+  const [tutorial, setTutorial] =
+    useState("");
+
+
 
   useEffect(() => {
     chrome.storage.local.get(
@@ -284,6 +290,21 @@ export default function App() {
 
     setFolders(updated);
 
+    const shortcut =
+      `${modifier} + ${keyValue}`;
+
+    setTutorial(
+      `🎉 New Folder Created!
+
+✓ Open any webpage.
+
+✓ Press ${shortcut}.
+
+✓ Highlight some text.
+
+✓ Start collecting notes instantly.`
+    );
+
     setFolderName("");
     setModifier("");
     setKeyValue("");
@@ -318,6 +339,16 @@ export default function App() {
     );
 
   }
+  function getChildren(
+    allNotes: Note[],
+    parentId: string
+  ) {
+
+    return allNotes.filter(
+      note => note.parentId === parentId
+    );
+
+  }
   function exportPDF(folderName: string) {
 
     const folderNotes =
@@ -343,35 +374,76 @@ export default function App() {
 
     ];
 
-    folderNotes.forEach((note, index) => {
+    let counter = 1;
 
-      content.push(
+    folderNotes
+      .filter(note => !note.parentId)
+      .forEach(parent => {
 
-        {
-          text: `${index + 1}. ${note.title}`,
-          style: "title"
-        },
+        content.push(
 
-        {
-          text: note.text,
-          margin: [0, 5, 0, 10]
-        },
+          {
+            text: `${counter}. ${parent.title}`,
+            style: "title"
+          },
 
-        {
-          text: `Source: ${note.url}`,
-          color: "blue",
-          margin: [0, 0, 0, 5]
-        },
+          {
+            text: parent.text,
+            margin: [0, 5, 0, 10]
+          },
 
-        {
-          text: `Date: ${note.date}`,
-          color: "gray",
-          margin: [0, 0, 0, 20]
-        }
+          {
+            text: `Source: ${parent.url}`,
+            color: "blue",
+            margin: [0, 0, 0, 5]
+          },
 
-      );
+          {
+            text: `Date: ${parent.date}`,
+            color: "gray",
+            margin: [0, 0, 0, 15]
+          }
 
-    });
+        );
+
+        counter++;
+
+        const children =
+          getChildren(folderNotes, parent.id);
+
+        children.forEach(child => {
+
+          content.push(
+
+            {
+              text: "↳ Child Note",
+              bold: true,
+              color: "#4F46E5",
+              margin: [25, 5, 0, 4]
+            },
+
+            {
+              text: child.text,
+              margin: [40, 0, 0, 10]
+            },
+
+            {
+              text: `Source: ${child.url}`,
+              color: "blue",
+              margin: [40, 0, 0, 4]
+            },
+
+            {
+              text: `Date: ${child.date}`,
+              color: "gray",
+              margin: [40, 0, 0, 20]
+            }
+
+          );
+
+        });
+
+      });
 
     pdfMake.createPdf({
 
@@ -455,6 +527,33 @@ export default function App() {
             {warning}
           </div>
         )}
+        {tutorial && (
+
+          <div className="tutorial-box">
+
+            <div>
+
+              <strong>
+                Tutorial
+              </strong>
+
+              <p>
+                {tutorial}
+              </p>
+
+            </div>
+
+            <button
+              onClick={() =>
+                setTutorial("")
+              }
+            >
+              Got it
+            </button>
+
+          </div>
+
+        )}
 
         <section className="create-card">
 
@@ -496,9 +595,6 @@ export default function App() {
                 Modifier
               </option>
 
-              <option value="⌘">
-                ⌘ Command
-              </option>
 
               <option value="Shift">
                 Shift
@@ -506,10 +602,6 @@ export default function App() {
 
               <option value="Option">
                 Option
-              </option>
-
-              <option value="Ctrl">
-                Ctrl
               </option>
 
             </select>

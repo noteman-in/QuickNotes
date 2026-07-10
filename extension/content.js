@@ -139,7 +139,10 @@ left:auto;
 
         }
 
-        toggle.innerHTML = "❯";
+        toggle.innerHTML =
+            panelCollapsed
+                ? "❮"
+                : "❯";
 
     };
     createReopenButton();
@@ -231,7 +234,6 @@ function createReopenButton() {
     reopenButton.onclick = () => {
 
         panelCollapsed = false;
-        sessionPanel.style.display = "block";
 
         sessionPanel.style.transform =
             "translateX(0)";
@@ -288,6 +290,8 @@ function closeSession() {
 
     }
     panelCollapsed = false;
+    currentHighlightCount = 0;
+    currentNoteId = null;
 
 }
 function saveSession() {
@@ -558,7 +562,7 @@ function saveSelection(text) {
                     folder:
                         activeFolder.name,
 
-                    text,
+                    text: text.trim(),
 
                     url:
                         location.href,
@@ -622,10 +626,9 @@ function saveSelection(text) {
             if (!note)
                 return;
 
-            note.text = note.text.trimEnd();
-
-            note.text += "\n\n" + text;
-
+            note.text = `${note.text.trimEnd()}\n\n${text.trim()}`;
+            console.log("Saved note:");
+            console.log(JSON.stringify(note.text));
             currentHighlightCount++;
 
             const count =

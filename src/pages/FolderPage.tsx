@@ -1,5 +1,5 @@
 import { useParams } from "react-router-dom";
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 
 import {
   ArrowLeft,
@@ -68,6 +68,8 @@ export default function FolderPage() {
 
   const [selectedParentId, setSelectedParentId] =
     useState<string | null>(null);
+  const [hierarchyWarning, setHierarchyWarning] =
+    useState("");
 
   useEffect(() => {
 
@@ -410,6 +412,30 @@ export default function FolderPage() {
     );
 
   }
+  function getDescendantIds(parentId: string): Set<string> {
+
+    const ids = new Set<string>();
+
+    function dfs(id: string) {
+
+      notes
+        .filter(note => note.parentId === id)
+        .forEach(child => {
+
+          ids.add(child.id);
+
+          dfs(child.id);
+
+        });
+
+    }
+
+    dfs(parentId);
+
+    return ids;
+
+  }
+
   function renderCard(
     note: Note,
     index: number,
@@ -635,6 +661,11 @@ export default function FolderPage() {
     );
 
   }
+  const descendants =
+    selectedNote
+      ? getDescendantIds(selectedNote.id)
+      : new Set<string>();
+
   return (
     <div className="app">
 
@@ -751,7 +782,7 @@ export default function FolderPage() {
               .filter(note => !note.parentId)
               .map((note, index) => (
 
-                <>
+                <React.Fragment key={note.id}>
                   {renderCard(note, index)}
 
                   {getChildren(note.id).map((child) => (
@@ -768,7 +799,7 @@ export default function FolderPage() {
                     </div>
 
                   ))}
-                </>
+                </React.Fragment>
 
               ))
 
@@ -776,6 +807,33 @@ export default function FolderPage() {
         </section>
 
       </main>
+      {hierarchyWarning && (
+
+        <div className="hierarchy-warning">
+
+          <div>
+
+            <strong>
+              ⚠ Hierarchy Rule
+            </strong>
+
+            <p>
+              {hierarchyWarning}
+            </p>
+
+          </div>
+
+          <button
+            onClick={() =>
+              setHierarchyWarning("")
+            }
+          >
+            ✕
+          </button>
+
+        </div>
+
+      )}
       {showParentModal && (
 
         <div className="modal-overlay">
@@ -799,18 +857,21 @@ export default function FolderPage() {
             <div className="parent-list">
 
               {notes
-                .filter(
-                  note =>
+                .filter(note =>
 
-                    note.id !== selectedNote?.id &&
+                  note.id !== selectedNote?.id &&
 
-                    note.folder === selectedNote?.folder &&
+                  note.folder === selectedNote?.folder &&
 
-                    note.text
-                      .toLowerCase()
-                      .includes(
-                        parentSearch.toLowerCase()
-                      )
+                  note.parentId === null &&
+
+                  !descendants.has(note.id) &&
+
+                  note.text
+                    .toLowerCase()
+                    .includes(
+                      parentSearch.toLowerCase()
+                    )
                 )
                 .map(note => (
 
@@ -857,9 +918,24 @@ export default function FolderPage() {
                   chrome.storage.local.get(
                     ["notes"],
                     (result: { notes?: Note[] }) => {
+                      const allNotes = result.notes || [];
+
+                      const hasChildren = allNotes.some(
+                        note => note.parentId === selectedNote.id
+                      );
+
+                      if (hasChildren) {
+
+                        setHierarchyWarning(
+                          "This note already has child notes. Remove or detach them before making this note a child."
+                        );
+
+                        return;
+
+                      }
 
                       const updatedNotes =
-                        (result.notes || []).map(note => {
+                        allNotes.map(note => {
 
                           if (
                             note.id === selectedNote.id
