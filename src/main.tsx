@@ -1,38 +1,23 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import {
-  HashRouter,
-  Routes,
-  Route
-} from "react-router-dom";
 
 import App from "./App";
-import FolderPage from "./pages/FolderPage";
-import FavoritesPage from "./pages/FavoritesPage";
 
 import "./index.css";
 
+const rootElement =
+  document.getElementById("root");
+
+if (!rootElement) {
+  throw new Error(
+    "QuickNotes could not find the root element.",
+  );
+}
+
 ReactDOM.createRoot(
-  document.getElementById("root")!
+  rootElement,
 ).render(
   <React.StrictMode>
-    <HashRouter>
-      <Routes>
-        <Route
-          path="/"
-          element={<App />}
-        />
-
-        <Route
-          path="/folder/:name"
-          element={<FolderPage />}
-        />
-
-        <Route
-          path="/favorites"
-          element={<FavoritesPage />}
-        />
-      </Routes>
-    </HashRouter>
-  </React.StrictMode>
+    <App />
+  </React.StrictMode>,
 );

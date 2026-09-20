@@ -1,990 +1,1127 @@
-import { useParams } from "react-router-dom";
-import React, { useEffect, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 
 import {
   ArrowLeft,
+  Check,
+  ChevronDown,
+  ChevronRight,
   Copy,
-  Pencil,
-  Trash2,
-  Star,
+  CornerDownRight,
   ExternalLink,
-  Save,
-  CornerDownRight
+  FileText,
+  FolderOpen,
+  Heart,
+  Link2,
+  Link2Off,
+  Moon,
+  Pencil,
+  Search,
+  ShieldCheck,
+  Sparkles,
+  Sun,
+  Trash2,
+  X,
 } from "lucide-react";
 
-interface Note {
+import {
+  displayDate,
+  getStorage,
+  isExtensionStorageAvailable,
+  saveNotes,
+  type Folder,
+  type Note,
+} from "../storage";
+import { useTheme } from "../hooks/useTheme";
 
-  id: string;
+import "./FolderPage.css";
 
-  folder: string;
+declare const chrome: {
+  storage: {
+    onChanged: {
+      addListener(
+        callback: (
+          changes: Record<
+            string,
+            { newValue?: unknown; oldValue?: unknown }
+          >,
+          areaName: string,
+        ) => void,
+      ): void;
+      removeListener(
+        callback: (
+          changes: Record<
+            string,
+            { newValue?: unknown; oldValue?: unknown }
+          >,
+          areaName: string,
+        ) => void,
+      ): void;
+    };
+  };
+};
 
-  text: string;
+type SortMode = "newest" | "oldest" | "favorites";
 
-  url: string;
-
-  title: string;
-
-  date: string;
-
-  favorite?: boolean;
-
-  parentId?: string | null;
-
+interface FolderPageProps {
+  folderId?: string;
 }
 
-export default function FolderPage() {
+function getRouteFolderId(): string {
+  const hash = window.location.hash;
+  const match = hash.match(/^#\/folder\/(.+)$/);
+  if (!match) return "";
+  try {
+    return decodeURIComponent(match[1]);
+  } catch {
+    return match[1];
+  }
+}
 
+function goHome(): void {
+  window.location.hash = "";
+}
 
-  const { name } = useParams();
+function getSourceDomain(url: string): string {
+  if (!url) return "";
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return "";
+  }
+}
 
-  const [notes, setNotes] =
-    useState<Note[]>([]);
+function getTimestamp(note: Note): number {
+  const value = note.updatedAt || note.createdAt || note.date;
+  const t = new Date(value).getTime();
+  return Number.isNaN(t) ? 0 : t;
+}
 
-  const [search, setSearch] =
-    useState("");
+function getChildren(notes: Note[], parentId: string): Note[] {
+  return notes.filter((note) => note.parentId === parentId);
+}
 
-  const [sort, setSort] =
-    useState("newest");
+export default function FolderPage({ folderId }: FolderPageProps) {
+  const [folder, setFolder] = useState<Folder | null>(null);
+  const [notes, setNotes] = useState<Note[]>([]);
+  const [search, setSearch] = useState("");
+  const [sort, setSort] = useState<SortMode>("newest");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editedText, setEditedText] = useState("");
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+  const [deleteTarget, setDeleteTarget] = useState<Note | null>(null);
+  const [linkTarget, setLinkTarget] = useState<Note | null>(null);
+  const [toast, setToast] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [notFound, setNotFound] = useState(false);
 
-  const [editing, setEditing] =
-    useState<number | null>(null);
+  const { resolved: themeResolved, toggle: toggleTheme } = useTheme();
 
-  const [editedText, setEditedText] =
-    useState("");
-  const [copiedIndex, setCopiedIndex] =
-    useState<number | null>(null);
-  const [savedIndex, setSavedIndex] =
-    useState<number | null>(null);
-  const [deletedIndex, setDeletedIndex] =
-    useState<number | null>(null);
-  const [showParentModal, setShowParentModal] =
-    useState(false);
+  const showToast = useCallback((message: string) => {
+    setToast(message);
+    window.setTimeout(() => setToast(""), 2200);
+  }, []);
 
-  const [selectedNote, setSelectedNote] =
-    useState<Note | null>(null);
-
-  const [parentSearch, setParentSearch] =
-    useState("");
-
-  const [selectedParentId, setSelectedParentId] =
-    useState<string | null>(null);
-  const [hierarchyWarning, setHierarchyWarning] =
-    useState("");
+  const loadFolder = useCallback(async () => {
+    setLoading(true);
+    try {
+      const storage = await getStorage();
+      const currentFolderId = folderId || getRouteFolderId();
+      const selectedFolder = storage.folders.find(
+        (item) => item.id === currentFolderId,
+      );
+      if (!selectedFolder) {
+        setFolder(null);
+        setNotes([]);
+        setNotFound(true);
+        return;
+      }
+      const folderNotes = storage.notes.filter(
+        (note) => note.folderId === selectedFolder.id,
+      );
+      setFolder(selectedFolder);
+      setNotes(folderNotes);
+      setNotFound(false);
+    } catch {
+      setFolder(null);
+      setNotes([]);
+      setNotFound(true);
+    } finally {
+      setLoading(false);
+    }
+  }, [folderId]);
 
   useEffect(() => {
+    void loadFolder();
+  }, [loadFolder]);
 
-    loadNotes();
+  useEffect(() => {
+    const handleHashChange = () => {
+      void loadFolder();
+    };
+    window.addEventListener("hashchange", handleHashChange);
+    return () => window.removeEventListener("hashchange", handleHashChange);
+  }, [loadFolder]);
 
+  useEffect(() => {
     const listener = (
-      changes: any,
-      area: string
+      changes: Record<
+        string,
+        { newValue?: unknown; oldValue?: unknown }
+      >,
+      areaName: string,
     ) => {
+      if (areaName !== "local") return;
+      const currentFolderId = folderId || getRouteFolderId();
 
-      if (
-        area === "local" &&
-        changes.notes
-      ) {
-        loadNotes();
+      if (changes.folders) {
+        const folders = (changes.folders.newValue as Folder[]) || [];
+        const nextFolder = folders.find((item) => item.id === currentFolderId);
+        setFolder(nextFolder || null);
+        setNotFound(!nextFolder);
       }
-
+      if (changes.notes) {
+        const allNotes = (changes.notes.newValue as Note[]) || [];
+        setNotes(allNotes.filter((note) => note.folderId === currentFolderId));
+      }
     };
+    if (!isExtensionStorageAvailable()) return;
+    chrome.storage.onChanged.addListener(listener);
+    return () => chrome.storage.onChanged.removeListener(listener);
+  }, [folderId]);
 
-    chrome.storage.onChanged.addListener(
-      listener
-    );
-
-    return () => {
-      chrome.storage.onChanged.removeListener(
-        listener
+  const filteredNotes = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    const filtered = notes.filter((note) => {
+      if (!query) return true;
+      return (
+        note.text.toLowerCase().includes(query) ||
+        note.title.toLowerCase().includes(query) ||
+        note.url.toLowerCase().includes(query)
       );
-    };
-
-  }, [name]);
-  function loadNotes() {
-
-    chrome.storage.local.get(
-      ["notes"],
-      (result: { notes?: Note[] }) => {
-
-        const allNotes =
-          result.notes || [];
-
-        const ids = new Set(
-          allNotes.map(note => note.id)
-        );
-
-        let repaired = false;
-
-        const repairedNotes =
-          allNotes.map(note => {
-
-            if (
-              note.parentId &&
-              !ids.has(note.parentId)
-            ) {
-
-              repaired = true;
-
-              return {
-
-                ...note,
-
-                parentId: null
-
-              };
-
-            }
-
-            return note;
-
-          });
-
-        if (repaired) {
-
-          chrome.storage.local.set({
-            notes: repairedNotes
-          });
-
-        }
-
-        const folderNotes =
-          repairedNotes.filter(
-            note =>
-              note.folder
-                .toLowerCase()
-                .trim() ===
-              name
-                ?.toLowerCase()
-                .trim()
-          );
-
-        setNotes(folderNotes);
-
+    });
+    return [...filtered].sort((a, b) => {
+      if (sort === "favorites") {
+        const diff = Number(!!b.favorite) - Number(!!a.favorite);
+        if (diff !== 0) return diff;
       }
-    );
-
-  }
-
-  const filteredNotes =
-    [...notes]
-      .filter(
-        (note) =>
-          note.text
-            .toLowerCase()
-            .includes(
-              search.toLowerCase()
-            ) ||
-          note.title
-            .toLowerCase()
-            .includes(
-              search.toLowerCase()
-            )
-      )
-      .sort((a, b) => {
-
-        if (
-          sort ===
-          "favorites"
-        ) {
-
-          return (
-            Number(
-              !!b.favorite
-            ) -
-            Number(
-              !!a.favorite
-            )
-          );
-
-        }
-
-        const first =
-          new Date(
-            a.date
-          ).getTime();
-
-        const second =
-          new Date(
-            b.date
-          ).getTime();
-
-        if (
-          sort ===
-          "oldest"
-        ) {
-
-          return (
-            first -
-            second
-          );
-
-        }
-
-        return (
-          second -
-          first
-        );
-
-      });
-  function copyNote(
-    text: string,
-    index: number
-  ) {
-
-    navigator.clipboard.writeText(text);
-
-    setCopiedIndex(index);
-
-    setTimeout(() => {
-      setCopiedIndex(null);
-    }, 1200);
-
-  }
-
-  function startEdit(
-    index: number
-  ) {
-
-    setEditing(index);
-
-    setEditedText(
-      filteredNotes[index]
-        .text
-    );
-
-  }
-
-  function saveEdit(
-    index: number
-  ) {
-
-    chrome.storage.local.get(
-      ["notes"],
-      (result: { notes?: Note[] }) => {
-
-        const updated =
-          (result.notes || []).map(
-            (note) => {
-
-              if (
-                note.id === filteredNotes[index].id
-              ) {
-
-                return {
-                  ...note,
-                  text: editedText
-                };
-
-              }
-
-              return note;
-
-            }
-          );
-
-        chrome.storage.local.set(
-          {
-            notes: updated
-          },
-          () => {
-
-            loadNotes();
-
-            setSavedIndex(index);
-
-            setTimeout(() => {
-
-              setSavedIndex(null);
-
-              setEditing(null);
-
-            }, 700);
-
-          }
-        );
-
-      }
-    );
-
-  }
-
-  function deleteNote(
-    index: number
-  ) {
-
-    setDeletedIndex(index);
-
-    setTimeout(() => {
-
-      chrome.storage.local.get(
-        ["notes"],
-        (result: { notes?: Note[] }) => {
-
-          const noteToDelete =
-            filteredNotes[index];
-
-          const updated =
-            (result.notes || []).filter(
-              note =>
-
-                note.id !== noteToDelete.id &&
-
-                note.parentId !== noteToDelete.id
-
-            );
-
-          chrome.storage.local.set(
-            {
-              notes: updated
-            },
-            () => {
-
-              loadNotes();
-
-              setDeletedIndex(null);
-
-            }
-          );
-
-        }
-      );
-
-    }, 700);
-
-  }
-
-  function toggleFavorite(
-    index: number
-  ) {
-
-    chrome.storage.local.get(
-      ["notes"],
-      (result: { notes?: Note[] }) => {
-
-        const updated =
-          (result.notes || []).map(
-            (note) => {
-
-              if (
-                note.id === filteredNotes[index].id
-              ) {
-
-                return {
-                  ...note,
-                  favorite:
-                    !note.favorite
-                };
-
-              }
-
-              return note;
-
-            }
-          );
-
-        chrome.storage.local.set(
-          {
-            notes: updated
-          },
-          loadNotes
-        );
-
-      }
-    );
-
-  }
-  function getNoteIndex(
-    id: string
-  ) {
-
-    return filteredNotes.findIndex(
-      note => note.id === id
-    );
-
-  }
-  function getChildren(
-    parentId: string
-  ) {
-
+      const first = getTimestamp(a);
+      const second = getTimestamp(b);
+      if (sort === "oldest") return first - second;
+      return second - first;
+    });
+  }, [notes, search, sort]);
+
+  const favoriteCount = useMemo(
+    () => notes.filter((note) => note.favorite).length,
+    [notes],
+  );
+
+  const parentNotes = useMemo(
+    () => filteredNotes.filter((note) => !note.parentId),
+    [filteredNotes],
+  );
+
+  const childNotes = useMemo(
+    () => filteredNotes.filter((note) => !!note.parentId),
+    [filteredNotes],
+  );
+
+  const orphanNotes = useMemo(() => {
+    const ids = new Set(notes.map((note) => note.id));
     return filteredNotes.filter(
-      note =>
-        note.parentId === parentId
+      (note) => note.parentId && !ids.has(note.parentId),
     );
+  }, [notes, filteredNotes]);
 
+  const eligibleParents = useMemo(
+    () => notes.filter((note) => !note.parentId),
+    [notes],
+  );
+  const [expandedTextIds, setExpandedTextIds] = useState<Set<string>>(
+    new Set(),
+  );
+
+  const canBecomeChild = useCallback((note: Note) => !note.parentId, []);
+
+
+  function toggleExpanded(noteId: string) {
+    setExpandedIds((current) => {
+      const next = new Set(current);
+      if (next.has(noteId)) next.delete(noteId);
+      else next.add(noteId);
+      return next;
+    });
   }
-  function getDescendantIds(parentId: string): Set<string> {
+  function toggleTextExpanded(noteId: string) {
+    setExpandedTextIds((current) => {
+      const next = new Set(current);
+      if (next.has(noteId)) next.delete(noteId);
+      else next.add(noteId);
+      return next;
+    });
+  }
 
-    const ids = new Set<string>();
+  function expandAll() {
+    setExpandedIds(
+      new Set(
+        parentNotes
+          .filter((n) => getChildren(notes, n.id).length > 0)
+          .map((n) => n.id),
+      ),
+    );
+  }
 
-    function dfs(id: string) {
+  function collapseAll() {
+    setExpandedIds(new Set());
+  }
 
-      notes
-        .filter(note => note.parentId === id)
-        .forEach(child => {
+  function startEditing(note: Note) {
+    setEditingId(note.id);
+    setEditedText(note.text);
+  }
 
-          ids.add(child.id);
+  function cancelEditing() {
+    setEditingId(null);
+    setEditedText("");
+  }
 
-          dfs(child.id);
-
-        });
-
+  async function saveEdit(noteId: string) {
+    const cleaned = editedText.trim();
+    if (!cleaned) {
+      showToast("A note cannot be empty.");
+      return;
     }
-
-    dfs(parentId);
-
-    return ids;
-
+    try {
+      const storage = await getStorage();
+      const updatedNotes = storage.notes.map((note) =>
+        note.id === noteId
+          ? {
+            ...note,
+            text: cleaned,
+            updatedAt: new Date().toISOString(),
+          }
+          : note,
+      );
+      await saveNotes(updatedNotes);
+      setNotes(updatedNotes.filter((note) => note.folderId === folder?.id));
+      cancelEditing();
+      showToast("Note updated.");
+    } catch {
+      showToast("Could not update the note.");
+    }
   }
 
-  function renderCard(
-    note: Note,
-    index: number,
-    child = false
-  ) {
+  async function toggleFavorite(noteId: string) {
+    try {
+      const storage = await getStorage();
+      let nextFavorite = false;
+      const updatedNotes = storage.notes.map((note) => {
+        if (note.id !== noteId) return note;
+        nextFavorite = !note.favorite;
+        return {
+          ...note,
+          favorite: nextFavorite,
+          updatedAt: new Date().toISOString(),
+        };
+      });
+      await saveNotes(updatedNotes);
+      setNotes(updatedNotes.filter((note) => note.folderId === folder?.id));
+      showToast(
+        nextFavorite ? "Added to favorites." : "Removed from favorites.",
+      );
+    } catch {
+      showToast("Could not update favorite.");
+    }
+  }
+
+  async function duplicateNote(noteId: string) {
+    try {
+      const storage = await getStorage();
+      const source = storage.notes.find((note) => note.id === noteId);
+      if (!source) return;
+      const timestamp = new Date().toISOString();
+      const clone: Note = {
+        ...source,
+        id: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`,
+        title: source.title ? `${source.title} (copy)` : "Untitled note (copy)",
+        favorite: false,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+        parentId: null,
+      };
+      const updatedNotes = [...storage.notes, clone];
+      await saveNotes(updatedNotes);
+      setNotes(updatedNotes.filter((note) => note.folderId === folder?.id));
+      showToast("Note duplicated.");
+    } catch {
+      showToast("Could not duplicate note.");
+    }
+  }
+
+  async function linkToParent(noteId: string, parentId: string | null) {
+    try {
+      const storage = await getStorage();
+      const target = storage.notes.find((note) => note.id === noteId);
+      if (!target) return;
+
+      if (parentId !== null && target.parentId) {
+        showToast("Child notes cannot be nested further.");
+        return;
+      }
+
+      if (parentId !== null) {
+        const parent = storage.notes.find((note) => note.id === parentId);
+        if (!parent) return;
+        if (parent.parentId) {
+          showToast("Parent must be a top-level note.");
+          return;
+        }
+        if (parent.id === target.id) return;
+        if (parent.folderId !== target.folderId) {
+          showToast("Parent must be in the same folder.");
+          return;
+        }
+      }
+
+      const updatedNotes = storage.notes.map((note) =>
+        note.id === noteId
+          ? { ...note, parentId, updatedAt: new Date().toISOString() }
+          : note,
+      );
+      await saveNotes(updatedNotes);
+      setNotes(updatedNotes.filter((note) => note.folderId === folder?.id));
+      setLinkTarget(null);
+      if (parentId !== null && expandedIds.size === 0) {
+        setExpandedIds(new Set([parentId]));
+      }
+      showToast(parentId ? "Linked as child note." : "Unlinked from parent.");
+    } catch {
+      showToast("Could not update link.");
+    }
+  }
+
+  async function deleteNote(noteId: string) {
+    try {
+      const storage = await getStorage();
+      const target = storage.notes.find(
+        (note) => note.id === noteId && note.folderId === folder?.id,
+      );
+      if (!target) {
+        setDeleteTarget(null);
+        return;
+      }
+      const idsToDelete = new Set<string>([target.id]);
+      let changed = true;
+      while (changed) {
+        changed = false;
+        for (const note of storage.notes) {
+          if (
+            note.parentId &&
+            idsToDelete.has(note.parentId) &&
+            !idsToDelete.has(note.id)
+          ) {
+            idsToDelete.add(note.id);
+            changed = true;
+          }
+        }
+      }
+      const updatedNotes = storage.notes.filter(
+        (note) => !idsToDelete.has(note.id),
+      );
+      await saveNotes(updatedNotes);
+      setNotes(updatedNotes.filter((note) => note.folderId === folder?.id));
+      setDeleteTarget(null);
+      showToast(
+        idsToDelete.size > 1
+          ? `Deleted note and ${idsToDelete.size - 1} child note${idsToDelete.size - 1 === 1 ? "" : "s"
+          }.`
+          : "Note deleted.",
+      );
+    } catch {
+      showToast("Could not delete the note.");
+    }
+  }
+
+  async function copyNote(note: Note) {
+    try {
+      await navigator.clipboard.writeText(note.text);
+      showToast("Note copied to clipboard.");
+    } catch {
+      showToast("Could not copy this note.");
+    }
+  }
+
+  function openSource(url: string) {
+    if (!url) return;
+    window.open(url, "_blank", "noopener,noreferrer");
+  }
+
+  function renderNoteCard(note: Note, depth = 0) {
+    const children = getChildren(notes, note.id);
+    const hasChildren = children.length > 0;
+    const expanded = expandedIds.has(note.id);
+    const isEditing = editingId === note.id;
+    const domain = getSourceDomain(note.url);
+    const isChild = !!note.parentId;
 
     return (
-      <div
-        className={
-          child
-            ? "folder-card child-card"
-            : "folder-card"
-
-        }
-
+      <article
+        key={note.id}
+        className={`folder-note-card${isChild ? " is-child" : ""}`}
+        style={{
+          marginLeft: depth > 0 ? Math.min(depth * 20, 60) : undefined,
+        }}
       >
-
-        <div className="note-content">
-
-          {editing === index ? (
-
-            <textarea
-              className="edit-box"
-              value={editedText}
-              onChange={(e) =>
-                setEditedText(
-                  e.target.value
-                )
-              }
-            />
-
-          ) : (
-
-            <div className="note-text">
-              {note.text}
-            </div>
-
-          )}
-
-          <div className="note-title">
-            {note.title}
-          </div>
-
-          <div className="note-date">
-            {note.date}
-          </div>
-
-        </div>
-
-        <div className="note-buttons">
-
-          <a
-            href={note.url}
-            target="_blank"
-            rel="noreferrer"
-            className="open-btn"
-          >
-            <ExternalLink size={16} />
-            Source
-          </a>
-
-          <button
-            className="copy-btn"
-            onClick={() =>
-              copyNote(
-                note.text,
-                index
-              )
-            }
-          >
-            {copiedIndex === index ? (
-              <>
-                ✓ Copied
-              </>
-            ) : (
-              <>
-                <Copy size={16} />
-                Copy
-              </>
-            )}
-          </button>
-
-          {editing === index ? (
-
-            <button
-              className="open-btn"
-              onClick={() =>
-                saveEdit(index)
-              }
-            >
-              {savedIndex === index ? (
-                <>
-                  ✓ Saved
-                </>
+        <div className="folder-note-top">
+          <div className="folder-note-source">
+            <div className="folder-note-icon">
+              {isChild ? (
+                <CornerDownRight size={15} />
               ) : (
-                <>
-                  <Save size={16} />
-                  Save
-                </>
+                <FileText size={15} />
               )}
-            </button>
+            </div>
+            <div className="folder-note-source-info">
+              <strong>{note.title || "Untitled note"}</strong>
+              <span>
+                {isChild && <span className="child-tag">child · </span>}
+                {domain || "Captured note"}
+              </span>
+            </div>
+          </div>
 
-          ) : (
-
-            <button
-              className="open-btn"
-              onClick={() =>
-                startEdit(index)
-              }
-            >
-              <Pencil size={16} />
-              Edit
-            </button>
-
-          )}
-          <button
-            className="open-btn"
-            onClick={() => {
-
-              setSelectedNote(note);
-
-              setSelectedParentId(null);
-
-              setParentSearch("");
-
-              setShowParentModal(true);
-
-            }}
-          >
-            <CornerDownRight size={16} />
-            {child ? "Move" : "Add Under"}
-          </button>
-          {child && (
-
-            <button
-              className="delete-btn"
-              onClick={() => {
-
-                chrome.storage.local.get(
-                  ["notes"],
-                  (result: any) => {
-
-                    const updatedNotes =
-                      (result.notes || []).map((n: Note) => {
-
-                        if (n.id === note.id) {
-
-                          return {
-
-                            ...n,
-
-                            parentId: null
-
-                          };
-
-                        }
-
-                        return n;
-
-                      });
-
-                    chrome.storage.local.set(
-                      {
-                        notes: updatedNotes
-                      },
-                      () => {
-
-                        loadNotes();
-
-                      }
-                    );
-
-                  }
-                );
-
-              }}
-            >
-
-              Remove Parent
-
-            </button>
-
-          )}
-
-          <button
-            className="favorite-btn"
-            onClick={() =>
-              toggleFavorite(index)
-            }
-          >
-            <Star
-              size={16}
-              fill={
-                note.favorite
-                  ? "currentColor"
-                  : "none"
-              }
-            />
-          </button>
-
-          <button
-            className="delete-btn"
-            onClick={() =>
-              deleteNote(index)
-            }
-          >
-            {deletedIndex === index ? (
-              <>
-                ✓ Deleted
-              </>
-            ) : (
-              <>
-                <Trash2 size={16} />
-                Delete
-              </>
+          <div className="folder-note-actions">
+            {hasChildren && (
+              <button
+                type="button"
+                className="note-icon-button"
+                onClick={() => toggleExpanded(note.id)}
+                aria-label={
+                  expanded ? "Collapse child notes" : "Expand child notes"
+                }
+                title={expanded ? "Collapse" : "Expand"}
+              >
+                {expanded ? (
+                  <ChevronDown size={15} />
+                ) : (
+                  <ChevronRight size={15} />
+                )}
+              </button>
             )}
-          </button>
-
+            <button
+              type="button"
+              className={`note-icon-button${note.favorite ? " is-favorite" : ""
+                }`}
+              onClick={() => void toggleFavorite(note.id)}
+              aria-label={
+                note.favorite ? "Remove from favorites" : "Add to favorites"
+              }
+              title={note.favorite ? "Remove favorite" : "Favorite"}
+            >
+              <Heart
+                size={15}
+                fill={note.favorite ? "currentColor" : "none"}
+              />
+            </button>
+            <button
+              type="button"
+              className="note-icon-button"
+              onClick={() => void copyNote(note)}
+              aria-label="Copy note"
+              title="Copy"
+            >
+              <Copy size={15} />
+            </button>
+            <button
+              type="button"
+              className="note-icon-button"
+              onClick={() => void duplicateNote(note.id)}
+              aria-label="Duplicate note"
+              title="Duplicate"
+            >
+              <Sparkles size={15} />
+            </button>
+            {note.url && (
+              <button
+                type="button"
+                className="note-icon-button"
+                onClick={() => openSource(note.url)}
+                aria-label="Open source"
+                title="Open source"
+              >
+                <ExternalLink size={15} />
+              </button>
+            )}
+          </div>
         </div>
 
-      </div>
+        <div className="folder-note-body">
+          {isEditing ? (
+            <div className="note-editor">
+              <textarea
+                value={editedText}
+                onChange={(event) => setEditedText(event.target.value)}
+                autoFocus
+                rows={7}
+              />
+              <div className="note-editor-actions">
+                <button
+                  type="button"
+                  className="note-action"
+                  onClick={cancelEditing}
+                >
+                  <X size={14} />
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="note-action primary-note-action"
+                  onClick={() => void saveEdit(note.id)}
+                >
+                  <Check size={14} />
+                  Save changes
+                </button>
+              </div>
+            </div>
+          ) : (
+            <>
+              <h3>{note.title || "Untitled note"}</h3>
 
+              {(() => {
+                const TRUNCATE = 320;
+                const isLong = note.text.length > TRUNCATE;
+                const expanded = expandedTextIds.has(note.id);
+                const shown =
+                  isLong && !expanded
+                    ? note.text.slice(0, TRUNCATE).trimEnd() + "…"
+                    : note.text;
+
+                return (
+                  <>
+                    <p
+                      className={`folder-note-text${isLong && !expanded ? " is-clamped" : ""
+                        }`}
+                    >
+                      {shown}
+                    </p>
+
+                    {isLong && (
+                      <button
+                        type="button"
+                        className="note-text-toggle"
+                        onClick={() => toggleTextExpanded(note.id)}
+                      >
+                        {expanded ? "Show less" : "Read more"}
+                      </button>
+                    )}
+                  </>
+                );
+              })()}
+
+              {note.url && (
+                <button
+                  type="button"
+                  className="source-preview"
+                  onClick={() => openSource(note.url)}
+                >
+                  <ExternalLink size={13} />
+                  <span>{note.url}</span>
+                </button>
+              )}
+            </>
+          )}
+        </div>
+
+        <div className="folder-note-footer">
+          <div className="folder-note-meta">
+            <span>
+              {note.createdAt ? displayDate(note.createdAt) : note.date}
+            </span>
+            {hasChildren && (
+              <span className="folder-note-count">
+                {children.length}{" "}
+                {children.length === 1 ? "child note" : "child notes"}
+              </span>
+            )}
+          </div>
+
+          {!isEditing && (
+            <div className="folder-note-buttons">
+              {isChild ? (
+                <button
+                  type="button"
+                  className="note-action"
+                  onClick={() => void linkToParent(note.id, null)}
+                  title="Unlink from parent"
+                >
+                  <Link2Off size={13} />
+                  Unlink
+                </button>
+              ) : (
+                canBecomeChild(note) && (
+                  <button
+                    type="button"
+                    className="note-action"
+                    onClick={() => setLinkTarget(note)}
+                    title="Link to a parent note"
+                  >
+                    <Link2 size={13} />
+                    Link
+                  </button>
+                )
+              )}
+              <button
+                type="button"
+                className="note-action"
+                onClick={() => startEditing(note)}
+              >
+                <Pencil size={13} />
+                Edit
+              </button>
+              <button
+                type="button"
+                className="note-action danger-note-action"
+                onClick={() => setDeleteTarget(note)}
+              >
+                <Trash2 size={13} />
+                Delete
+              </button>
+            </div>
+          )}
+        </div>
+
+        {hasChildren && expanded && (
+          <div className="related-notes">
+            <div className="related-notes-list">
+              {children.map((child) => renderNoteCard(child, depth + 1))}
+            </div>
+          </div>
+        )}
+      </article>
     );
-
   }
-  const descendants =
-    selectedNote
-      ? getDescendantIds(selectedNote.id)
-      : new Set<string>();
+
+  if (loading) {
+    return (
+      <div className="folder-page">
+        <div className="folder-page-loading">
+          <div className="folder-page-brand-icon">
+            <Sparkles size={18} />
+          </div>
+          <strong>Loading folder…</strong>
+          <span>Preparing your notes.</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (notFound || !folder) {
+    return (
+      <div className="folder-page">
+        <div className="folder-page-error">
+          <div className="folder-empty-icon">
+            <FolderOpen size={26} />
+          </div>
+          <h1>Folder not found</h1>
+          <p>
+            This folder may have been deleted or the link is no longer valid.
+          </p>
+          <button type="button" className="empty-action" onClick={goHome}>
+            <ArrowLeft size={14} />
+            Back to dashboard
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const expandableCount = parentNotes.filter(
+    (n) => getChildren(notes, n.id).length > 0,
+  ).length;
 
   return (
-    <div className="app">
-
-      <header className="navbar">
-
-        <div className="navbar-left">
-
-          <button
-            className="back-button"
-            onClick={() => {
-              window.location.hash = "/";
-            }}
-          >
-            <ArrowLeft size={18} />
-          </button>
-
-          <div className="brand-text">
-
-            <h1>
-              {name}
-            </h1>
-
-            <span>
-              Manage your notes
-            </span>
-
-          </div>
-
-        </div>
-
-        <div className="navbar-right">
-
-          <input
-            className="page-search"
-            placeholder="Search notes..."
-            value={search}
-            onChange={(e) =>
-              setSearch(
-                e.target.value
-              )
-            }
-          />
-
-        </div>
-
-      </header>
-
-      <main className="dashboard">
-
-        <section className="create-card">
-
-          <div className="create-header">
-
-            <h2>
-              {name}
-            </h2>
-
-            <p>
-              {filteredNotes.length}
-              {filteredNotes.length === 1
-                ? " saved note"
-                : " saved notes"}
-            </p>
-
-          </div>
-
-          <div className="sort-row">
-
-            <div
-              style={{
-                color: "#6b7280",
-                fontWeight: 600
-              }}
+    <div className="app folder-page">
+      <div className="folder-stage">
+        <header className="quicknotes-navbar">
+          <div className="quicknotes-navbar-left">
+            <button
+              type="button"
+              className="quicknotes-back"
+              onClick={goHome}
+              aria-label="Back to dashboard"
+              title="Back to dashboard"
             >
-              Sort Notes
-            </div>
+              <ArrowLeft size={17} />
+            </button>
 
-            <select
-              className="sort-box"
-              value={sort}
-              onChange={(e) =>
-                setSort(
-                  e.target.value
-                )
+            <div className="quicknotes-brand">
+              <div className="quicknotes-brand-icon">
+                <FolderOpen size={16} />
+              </div>
+              <div className="quicknotes-brand-text">
+                <h1>QuickNotes</h1>
+                <span>Capture · Organize · Revise</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="quicknotes-navbar-right">
+            <button
+              type="button"
+              className="theme-toggle"
+              onClick={toggleTheme}
+              aria-label={
+                themeResolved === "dark"
+                  ? "Switch to light mode"
+                  : "Switch to dark mode"
+              }
+              title={
+                themeResolved === "dark"
+                  ? "Switch to light mode"
+                  : "Switch to dark mode"
               }
             >
+              <span className="theme-toggle-track" aria-hidden="true">
+                <span
+                  className={`theme-toggle-icon theme-toggle-sun${themeResolved === "dark" ? " is-active" : ""
+                    }`}
+                >
+                  <Sun size={15} />
+                </span>
+                <span
+                  className={`theme-toggle-icon theme-toggle-moon${themeResolved === "light" ? " is-active" : ""
+                    }`}
+                >
+                  <Moon size={15} />
+                </span>
+              </span>
+            </button>
 
-              <option value="newest">
-                Newest First
-              </option>
-
-              <option value="oldest">
-                Oldest First
-              </option>
-
-
-            </select>
-
+            <button
+              type="button"
+              className="quicknotes-favorites"
+              onClick={() => {
+                window.location.hash = "/favorites";
+              }}
+              aria-label="Open favorites"
+              title="Favorites"
+            >
+              <Heart size={15} />
+              <span>Favorites</span>
+            </button>
           </div>
+        </header>
 
-        </section>
+        <main className="dashboard folder-dashboard">
+          <section className="folder-hero">
+            <div className="folder-hero-copy">
+              <button
+                type="button"
+                className="folder-breadcrumb"
+                onClick={goHome}
+              >
+                Dashboard
+                <ChevronRight size={13} />
+                <span>{folder.name}</span>
+              </button>
 
-        <section className="folder-list">
-
-          {filteredNotes.length === 0 ? (
-
-            <div className="empty-message">
-              No notes found.
-            </div>
-
-          ) : (
-
-            filteredNotes
-              .filter(note => !note.parentId)
-              .map((note, index) => (
-
-                <React.Fragment key={note.id}>
-                  {renderCard(note, index)}
-
-                  {getChildren(note.id).map((child) => (
-
-                    <div
-                      key={child.id}
-                      className="child-wrapper"
-                    >
-                      {renderCard(
-                        child,
-                        getNoteIndex(child.id),
-                        true
-                      )}
-                    </div>
-
-                  ))}
-                </React.Fragment>
-
-              ))
-
-          )}
-        </section>
-
-      </main>
-      {hierarchyWarning && (
-
-        <div className="hierarchy-warning">
-
-          <div>
-
-            <strong>
-              ⚠ Hierarchy Rule
-            </strong>
-
-            <p>
-              {hierarchyWarning}
-            </p>
-
-          </div>
-
-          <button
-            onClick={() =>
-              setHierarchyWarning("")
-            }
-          >
-            ✕
-          </button>
-
-        </div>
-
-      )}
-      {showParentModal && (
-
-        <div className="modal-overlay">
-
-          <div className="parent-modal">
-
-            <h2>Add Under</h2>
-
-            <p>
-              Choose a parent note.
-            </p>
-
-            <input
-              type="text"
-              placeholder="Search..."
-              value={parentSearch}
-              onChange={(e) =>
-                setParentSearch(e.target.value)}
-            />
-
-            <div className="parent-list">
-
-              {notes
-                .filter(note =>
-
-                  note.id !== selectedNote?.id &&
-
-                  note.folder === selectedNote?.folder &&
-
-                  note.parentId === null &&
-
-                  !descendants.has(note.id) &&
-
-                  note.text
-                    .toLowerCase()
-                    .includes(
-                      parentSearch.toLowerCase()
-                    )
-                )
-                .map(note => (
-
-                  <div
-                    key={note.id}
-                    className={`parent-item ${selectedParentId === note.id
-                      ? "selected"
-                      : ""
-                      }`}
-                    onClick={() =>
-                      setSelectedParentId(note.id)}
-                  >
-
-                    {note.text.length > 80
-                      ? note.text.slice(0, 80) + "..."
-                      : note.text}
-
+              <div className="folder-title-row">
+                <div className="large-folder-icon">
+                  <FolderOpen size={22} />
+                </div>
+                <div>
+                  <h1>{folder.name}</h1>
+                  <div className="folder-privacy">
+                    <ShieldCheck size={13} />
+                    Stored locally
                   </div>
+                </div>
+              </div>
 
-                ))}
-
+              <p>
+                Everything you captured for this knowledge folder, organized in
+                one place.
+              </p>
             </div>
 
-            <div className="modal-buttons">
+            <div className="folder-hero-stats">
+              <div className="folder-stat">
+                <span className="folder-stat-value">{notes.length}</span>
+                <span className="folder-stat-label">Notes</span>
+              </div>
+              <div className="folder-stat-divider" />
+              <div className="folder-stat">
+                <span className="folder-stat-value">{favoriteCount}</span>
+                <span className="folder-stat-label">Favorites</span>
+              </div>
+              <div className="folder-stat-divider" />
+              <div className="folder-stat">
+                <span className="folder-stat-value">{childNotes.length}</span>
+                <span className="folder-stat-label">Linked</span>
+              </div>
+            </div>
+          </section>
 
-              <button
-                onClick={() =>
-                  setShowParentModal(false)}
-              >
+          <section className="folder-toolbar">
+            <label className="folder-toolbar-search">
+              <Search size={15} />
+              <input
+                type="search"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Search notes, titles or sources…"
+                aria-label="Search notes"
+              />
+              {search && (
+                <button
+                  type="button"
+                  onClick={() => setSearch("")}
+                  aria-label="Clear search"
+                >
+                  <X size={14} />
+                </button>
+              )}
+            </label>
 
-                Cancel
+            <div className="folder-toolbar-actions">
+              {expandableCount > 0 && (
+                <div className="expand-controls">
+                  <button
+                    type="button"
+                    onClick={expandAll}
+                    className="expand-button"
+                    title="Expand all child notes"
+                  >
+                    <ChevronDown size={13} />
+                    Expand
+                  </button>
+                  <button
+                    type="button"
+                    onClick={collapseAll}
+                    className="expand-button"
+                    title="Collapse all child notes"
+                  >
+                    <ChevronRight size={13} />
+                    Collapse
+                  </button>
+                </div>
+              )}
 
-              </button>
+              <label className="sort-control">
+                <span>Sort</span>
+                <select
+                  value={sort}
+                  onChange={(event) =>
+                    setSort(event.target.value as SortMode)
+                  }
+                >
+                  <option value="newest">Newest</option>
+                  <option value="oldest">Oldest</option>
+                  <option value="favorites">Favorites</option>
+                </select>
+              </label>
+            </div>
+          </section>
 
-              <button
-                onClick={() => {
-
-                  if (
-                    !selectedParentId ||
-                    !selectedNote
-                  )
-                    return;
-
-                  chrome.storage.local.get(
-                    ["notes"],
-                    (result: { notes?: Note[] }) => {
-                      const allNotes = result.notes || [];
-
-                      const hasChildren = allNotes.some(
-                        note => note.parentId === selectedNote.id
-                      );
-
-                      if (hasChildren) {
-
-                        setHierarchyWarning(
-                          "This note already has child notes. Remove or detach them before making this note a child."
-                        );
-
-                        return;
-
-                      }
-
-                      const updatedNotes =
-                        allNotes.map(note => {
-
-                          if (
-                            note.id === selectedNote.id
-                          ) {
-
-                            return {
-
-                              ...note,
-
-                              parentId: selectedParentId
-
-                            };
-
-                          }
-
-                          return note;
-
-                        });
-
-                      chrome.storage.local.set(
-                        {
-                          notes: updatedNotes
-                        },
-                        () => {
-
-                          loadNotes();
-
-                          setShowParentModal(false);
-
-                        }
-                      );
-
-                    }
-                  );
-                }}
-              >
-
-                Add Under
-
-              </button>
-
+          <section className="folder-notes-section">
+            <div className="folder-notes-heading">
+              <div>
+                <h2>{search ? "Search results" : "Your notes"}</h2>
+              </div>
+              <span className="note-related-count">
+                {filteredNotes.length}{" "}
+                {filteredNotes.length === 1 ? "note" : "notes"}
+              </span>
             </div>
 
-          </div>
+            {filteredNotes.length === 0 ? (
+              <div className="folder-empty-state">
+                <div className="folder-empty-icon">
+                  <Search size={22} />
+                </div>
+                <h3>
+                  {search ? "No matching notes" : "This folder is empty"}
+                </h3>
+                <p>
+                  {search
+                    ? "Try another search term or clear the filter."
+                    : "Capture something from a webpage and it will appear here."}
+                </p>
+                {search && (
+                  <button
+                    type="button"
+                    className="empty-action"
+                    onClick={() => setSearch("")}
+                  >
+                    Clear search
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="folder-note-list">
+                {parentNotes.map((note) => renderNoteCard(note))}
+              </div>
+            )}
+          </section>
 
+          {orphanNotes.length > 0 && (
+            <section className="orphan-note-section">
+              <div className="orphan-note-heading">
+                <div>
+                  <h2>Unlinked notes</h2>
+                </div>
+                <span className="note-related-count">{orphanNotes.length}</span>
+              </div>
+
+              <div className="folder-note-list">
+                {orphanNotes.map((note) => renderNoteCard(note))}
+              </div>
+            </section>
+          )}
+
+          <footer className="dashboard-footer">
+            <div>
+              <ShieldCheck size={13} />
+              <span>QuickNotes keeps your knowledge organized.</span>
+            </div>
+            <button type="button" onClick={goHome}>
+              <ArrowLeft size={13} />
+              Back to dashboard
+            </button>
+          </footer>
+        </main>
+      </div>
+
+      {toast && (
+        <div className="status-message status-success" role="status">
+          <Check size={14} />
+          {toast}
         </div>
-
       )}
 
+      {linkTarget && (
+        <div
+          className="modal-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="link-note-title"
+        >
+          <div className="confirmation-modal link-modal">
+            <button
+              type="button"
+              className="modal-close"
+              onClick={() => setLinkTarget(null)}
+              aria-label="Cancel"
+            >
+              <X size={16} />
+            </button>
+
+            <div className="link-icon">
+              <Link2 size={18} />
+            </div>
+
+            <h2 id="link-note-title">Link to a parent note</h2>
+            <p>
+              Choose a top-level note to become the parent of "
+              <strong>{linkTarget.title || "Untitled note"}</strong>". Only
+              top-level notes can be parents, and a note can only have one
+              parent.
+            </p>
+
+            <div className="link-list">
+              {eligibleParents.filter((n) => n.id !== linkTarget.id).length ===
+                0 ? (
+                <div className="link-empty">
+                  No top-level notes available in this folder.
+                </div>
+              ) : (
+                eligibleParents
+                  .filter((n) => n.id !== linkTarget.id)
+                  .map((candidate) => (
+                    <button
+                      key={candidate.id}
+                      type="button"
+                      className="link-option"
+                      onClick={() =>
+                        void linkToParent(linkTarget.id, candidate.id)
+                      }
+                    >
+                      <FileText size={14} />
+                      <span>{candidate.title || "Untitled note"}</span>
+                      <ChevronRight size={14} />
+                    </button>
+                  ))
+              )}
+            </div>
+
+            <div className="modal-actions">
+              <button
+                type="button"
+                className="modal-cancel"
+                onClick={() => setLinkTarget(null)}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {deleteTarget && (
+        <div
+          className="modal-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="delete-note-title"
+        >
+          <div className="confirmation-modal">
+            <button
+              type="button"
+              className="modal-close"
+              onClick={() => setDeleteTarget(null)}
+              aria-label="Cancel"
+            >
+              <X size={16} />
+            </button>
+
+            <div className="danger-icon">
+              <Trash2 size={18} />
+            </div>
+
+            <h2 id="delete-note-title">Delete this note?</h2>
+            <p>
+              This will permanently remove this note
+              {getChildren(notes, deleteTarget.id).length > 0
+                ? " and its child notes"
+                : ""}
+              . This action cannot be undone.
+            </p>
+
+            <div className="modal-actions">
+              <button
+                type="button"
+                className="modal-cancel"
+                onClick={() => setDeleteTarget(null)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="modal-delete"
+                onClick={() => void deleteNote(deleteTarget.id)}
+              >
+                <Trash2 size={14} />
+                Delete note
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,53 +1,48 @@
 {
   "manifest_version": 3,
   "name": "QuickNotes",
-  "version": "1.0.2",
+  "version": "1.2.0",
+  "description": "Capture highlighted text instantly and organize your notes into local folders.",
+
   "icons": {
-  "16": "icons/16.png",
-  "32": "icons/32.png",
-  "48": "icons/48.png",
-  "128": "icons/128.png"
-},
+    "16":  "icons/16.png",
+    "32":  "icons/32.png",
+    "48":  "icons/48.png",
+    "128": "icons/128.png"
+  },
+
+  "action": {
+    "default_title": "QuickNotes",
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16":  "icons/16.png",
+      "32":  "icons/32.png",
+      "48":  "icons/48.png",
+      "128": "icons/128.png"
+    }
+  },
+
   "permissions": [
     "storage",
-    "activeTab",
     "tabs"
   ],
   "host_permissions": [
     "<all_urls>"
   ],
-"action": {
-  "default_popup": "popup.html",
-  "default_icon": {
-    "16": "icons/16.png",
-    "32": "icons/32.png",
-    "48": "icons/48.png"
-  }
-},
   "background": {
     "service_worker": "background.js"
   },
   "content_scripts": [
     {
-      "matches": [
-        "<all_urls>"
-      ],
-      "js": [
-        "content.js"
-      ],
-      "run_at": "document_idle",
-      "all_frames": false
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
     }
   ],
   "web_accessible_resources": [
     {
-      "resources": [
-        "dist/*",
-        "dist/assets/*"
-      ],
-      "matches": [
-        "<all_urls>"
-      ]
+      "resources": ["dist/*"],
+      "matches": ["<all_urls>"]
     }
   ]
 }
